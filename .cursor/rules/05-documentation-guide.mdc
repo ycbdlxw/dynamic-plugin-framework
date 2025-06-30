@@ -1,0 +1,29 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# 文档指南
+
+## 主要文档
+
+项目包含以下关键文档：
+
+- **开发文档**: [开发文档.md](mdc:docs/开发文档.md) - 开发指南
+- **架构设计**: [调度中心与业务逻辑完全分离.md](mdc:docs/调度中心与业务逻辑完全分离.md) - 系统架构说明
+- **命令执行器插件**: [command-executor-plugin.md](mdc:docs/command-executor-plugin.md) - 命令执行器插件文档
+- **测试服务**: [test-service.md](mdc:docs/test-service.md) - 测试服务插件文档
+- **测试服务使用**: [test-service-usage.md](mdc:docs/test-service-usage.md) - 测试服务使用指南
+- **数据库驱动演示**: [db_driver_demo.md](mdc:docs/db_driver_demo.md) - 数据库驱动示例
+- **操作日志**: [operation-log.md](mdc:docs/operation-log.md) - 操作日志功能说明
+
+## 测试示例
+
+系统提供了以下测试示例：
+
+- **命令执行器测试**: [test_command_executor.curl](mdc:src/main/resources/test/test_command_executor.curl) - 测试命令执行器的CURL示例
+- **用户CRUD测试**: [test_user_crud.curl](mdc:src/main/resources/test/test_user_crud.curl) - 测试用户增删改查的CURL示例
+
+## README
+
+项目的README文件 [readme.md](mdc:readme.md) 提供了项目的概述和快速入门指南。

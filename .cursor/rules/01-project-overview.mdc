@@ -1,0 +1,23 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# 项目概览
+
+本项目是一个动态插件框架，允许在不重启应用程序的情况下加载、卸载和运行插件。
+
+## 核心组件
+
+- **插件接口**: [src/main/java/com/ycbd/demo/plugin/IPlugin.java](mdc:src/main/java/com/ycbd/demo/plugin/IPlugin.java) - 所有插件必须实现的接口
+- **插件引擎**: [src/main/java/com/ycbd/demo/plugin/PluginEngine.java](mdc:src/main/java/com/ycbd/demo/plugin/PluginEngine.java) - 负责插件的管理和生命周期
+- **插件控制器**: [src/main/java/com/ycbd/demo/controller/PluginController.java](mdc:src/main/java/com/ycbd/demo/controller/PluginController.java) - 提供插件管理的RESTful API
+
+## 示例插件
+
+- **命令执行插件**: [src/main/java/com/ycbd/demo/plugin/commandexecutor/CommandExecutorPlugin.java](mdc:src/main/java/com/ycbd/demo/plugin/commandexecutor/CommandExecutorPlugin.java)
+- **测试服务插件**: [src/main/java/com/ycbd/demo/plugin/TestServicePlugin.java](mdc:src/main/java/com/ycbd/demo/plugin/TestServicePlugin.java)
+
+## 主要入口点
+
+应用程序的主入口点是 [src/main/java/com/ycbd/demo/DemoApplication.java](mdc:src/main/java/com/ycbd/demo/DemoApplication.java)。

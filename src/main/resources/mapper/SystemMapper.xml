@@ -1,0 +1,153 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ycbd.demo.mapper.SystemMapper">
+
+    <!-- 通用列表查询 -->
+    <select id="getItemsData" resultType="map">
+        SELECT
+        <if test="columns != null and columns != '' and columns != '*'">
+            ${columns}
+        </if>
+        <if test="columns == null or columns == '' or columns == '*'">
+            *
+        </if>
+        FROM ${table}
+        <if test="joinString != null and joinString != ''">
+            ${joinString}
+        </if>
+        <if test="whereStr != null and whereStr != ''">
+            WHERE ${whereStr}
+        </if>
+        <if test="groupByString != null and groupByString != ''">
+            GROUP BY ${groupByString}
+        </if>
+        <if test="sortByAndType != null and sortByAndType != ''">
+            ORDER BY ${sortByAndType}
+        </if>
+        <if test="pageSize > 0">
+            LIMIT #{pageSize} OFFSET #{pageIndex}
+        </if>
+    </select>
+
+    <!-- 通用计数 -->
+    <select id="getDataCount" resultType="int">
+        SELECT COUNT(1) FROM ${table}
+        <if test="joinString != null and joinString != ''">
+            ${joinString}
+        </if>
+        <if test="whereStr != null and whereStr != ''">
+            WHERE ${whereStr}
+        </if>
+    </select>
+
+    <!-- 获取表级属性 -->
+    <select id="getAttributeData" resultType="map">
+        SELECT * FROM table_attribute WHERE dbtable = #{table}
+    </select>
+  
+    <!-- 获取列级属性 -->
+    <select id="getColumnAttributes" resultType="map">
+        SELECT * FROM column_attribute WHERE dbTableName = #{table}
+        <if test="attributeType != null and attributeType != ''">
+            AND editType = #{attributeType}
+        </if>
+        ORDER BY OrderNo ASC
+    </select>
+  
+    <!-- 获取主键列名 -->
+    <select id="getPriKeyColumn" resultType="string">
+        SELECT name FROM column_attribute WHERE dbTableName = #{table} AND IsPri = 1 LIMIT 1
+    </select>
+    
+    <!-- 获取校验规则 -->
+    <select id="getValidationRules" resultType="map">
+        SELECT * FROM column_check_property 
+        WHERE check_table = #{tableName} AND status = 1
+        ORDER BY check_order ASC
+    </select>
+
+    <!-- 通用插入，并获取自增ID -->
+    <insert id="insertData" useGeneratedKeys="true" keyProperty="data.id" keyColumn="id">
+        INSERT INTO ${table}
+        (
+        <foreach collection="data.keys" item="key" separator=",">
+            `${key}`
+        </foreach>
+        )
+        VALUES
+        (
+        <foreach collection="data.values" item="value" separator=",">
+            #{value}
+        </foreach>
+        )
+    </insert>
+  
+    <!-- 通用批量插入 -->
+    <insert id="insertDataBath">
+        INSERT INTO ${table} (${columns}) VALUES
+        <foreach collection="saveData" item="item" separator=",">
+            (
+            <foreach collection="item" item="value" index="key" separator=",">
+                #{value}
+            </foreach>
+            )
+        </foreach>
+    </insert>
+
+    <!-- 通用更新 -->
+    <update id="updateData">
+        UPDATE ${table}
+        <set>
+            <foreach collection="data.entrySet()" item="value" index="key">
+                <if test="key != primaryKey">
+                    `${key}` = #{value},
+                </if>
+            </foreach>
+        </set>
+        WHERE `${primaryKey}` = #{id}
+    </update>
+  
+    <!-- 通用批量更新 -->
+    <update id="updateDataBatch">
+        UPDATE ${table}
+        <set>
+            <foreach collection="data.entrySet()" item="value" index="key">
+                `${key}` = #{value},
+            </foreach>
+        </set>
+        WHERE `${primaryKey}` IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </update>
+
+    <!-- 通用删除 -->
+    <delete id="deleteData">
+        DELETE FROM `${table}` WHERE `${primaryKey}` = #{id}
+    </delete>
+  
+    <!-- 通用批量删除 -->
+    <delete id="deleteDataBatch">
+        DELETE FROM `${table}` WHERE `${primaryKey}` IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+  
+    <!-- 查询数据库元数据 -->
+    <select id="selectSchema" resultType="map">
+        SELECT
+            COLUMN_NAME,
+            DATA_TYPE,
+            CHARACTER_MAXIMUM_LENGTH,
+            NUMERIC_PRECISION,
+            COLUMN_COMMENT,
+            COLUMN_KEY,
+            COLUMN_DEFAULT,
+            IS_NULLABLE
+        FROM
+            information_schema.COLUMNS
+        WHERE
+            TABLE_SCHEMA = #{schemaName} AND TABLE_NAME = #{tableName}
+    </select>
+</mapper> 

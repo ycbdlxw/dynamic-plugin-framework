@@ -1,0 +1,14 @@
+# 登录获取token
+curl -X POST 'http://localhost:8081/api/core/login' -H 'Content-Type: application/json' -d '{"username":"admin","password":"ycbd1234"}'
+
+# 加载插件
+curl -X POST 'http://localhost:8081/api/system/plugins/load?pluginName=CommandExecutor' -H 'Authorization: Bearer your-token-here'
+
+# 执行echo命令
+curl -X POST 'http://localhost:8081/api/command/execute' -H 'Content-Type: application/json' -H 'Authorization: Bearer your-token-here' -d '{"command":"echo 你好，世界!"}'
+
+# 执行系统信息命令
+curl -X POST 'http://localhost:8081/api/command/execute' -H 'Content-Type: application/json' -H 'Authorization: Bearer your-token-here' -d '{"command":"date"}'
+
+# 列出目录内容
+curl -X POST 'http://localhost:8081/api/command/execute' -H 'Content-Type: application/json' -H 'Authorization: Bearer your-token-here' -d '{"command":"ls -la"}' 

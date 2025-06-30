@@ -1,0 +1,101 @@
+package com.ycbd.demo.controller;
+
+import java.util.Map;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.DependsOn;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.ycbd.demo.plugin.IPlugin;
+import com.ycbd.demo.plugin.PluginEngine;
+import com.ycbd.demo.plugin.commandexecutor.CommandExecutorPlugin;
+import com.ycbd.demo.utils.ApiResponse;
+
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.annotation.PostConstruct;
+
+/**
+ * 测试控制器 此控制器在启动时自动加载TestService插件，并将其API请求转发到插件
+ */
+@RestController
+@RequestMapping("/api/test")
+@DependsOn("pluginEngine")
+@Tag(name = "测试服务接口", description = "提供自动化接口测试功能")
+public class TestController {
+
+    private static final Logger logger = LoggerFactory.getLogger(TestController.class);
+
+    @Autowired
+    private PluginEngine pluginEngine;
+
+    @Autowired
+    private CommandExecutorPlugin commandExecutorPlugin;
+
+    @PostConstruct
+    public void init() {
+        logger.info("初始化测试控制器，尝试加载TestService插件");
+        try {
+            String result = pluginEngine.loadPlugin("TestService");
+            logger.info(result);
+        } catch (Exception e) {
+            logger.error("加载TestService插件失败", e);
+        }
+    }
+
+    @PostMapping("/run")
+    @Operation(summary = "运行测试脚本", description = "解析并执行指定的测试脚本文件")
+    public ApiResponse<?> runTest(
+            @RequestParam String scriptPath,
+            @RequestParam(required = false, defaultValue = "test_results") String resultDir,
+            @RequestParam(required = false, defaultValue = "false") boolean useCurrentDir) {
+
+        try {
+            // 从PluginEngine获取插件
+            IPlugin plugin = pluginEngine.getPlugin("TestService");
+            if (plugin == null) {
+                // 尝试重新加载插件
+                String result = pluginEngine.loadPlugin("TestService");
+                if (!result.contains("加载成功")) {
+                    return ApiResponse.failed("测试服务插件未加载或初始化失败: " + result);
+                }
+                plugin = pluginEngine.getPlugin("TestService");
+                if (plugin == null) {
+                    return ApiResponse.failed("测试服务插件加载后仍无法获取");
+                }
+            }
+
+            // 调用插件的runTest方法，真正执行脚本
+            com.ycbd.demo.plugin.TestServicePlugin testServicePlugin = (com.ycbd.demo.plugin.TestServicePlugin) plugin;
+            return testServicePlugin.getController().runTest(scriptPath, resultDir, useCurrentDir);
+
+        } catch (Exception e) {
+            logger.error("执行测试脚本失败", e);
+            return ApiResponse.failed("执行测试脚本失败: " + e.getMessage());
+        }
+    }
+
+    @PostMapping("/command")
+    @Operation(summary = "执行命令", description = "执行系统命令并返回结果")
+    public ApiResponse<Object> executeCommand(@RequestBody Map<String, String> params) {
+        String command = params.get("command");
+        if (command == null || command.trim().isEmpty()) {
+            return ApiResponse.failed("命令不能为空");
+        }
+
+        // 执行命令
+        try {
+            Map<String, Object> result = (Map<String, Object>) commandExecutorPlugin.executeCommand(command);
+            return ApiResponse.success(result);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ApiResponse.failed("执行命令失败: " + e.getMessage());
+        }
+    }
+}

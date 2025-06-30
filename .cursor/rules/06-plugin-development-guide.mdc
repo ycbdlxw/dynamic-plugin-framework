@@ -1,0 +1,53 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# 插件开发指南
+
+## 插件结构
+
+一个完整的插件通常包含以下组件：
+
+1. **插件主类**: 实现 [IPlugin](mdc:src/main/java/com/ycbd/demo/plugin/IPlugin.java) 接口
+2. **控制器**: 提供REST API
+3. **服务类**: 提供业务逻辑
+
+## 示例插件分析
+
+### 命令执行器插件
+
+[CommandExecutorPlugin](mdc:src/main/java/com/ycbd/demo/plugin/commandexecutor/CommandExecutorPlugin.java) 包含：
+
+- 主插件类: `CommandExecutorPlugin`
+- 控制器: `CommandExecutorController`
+- 服务: `CommandExecutionService`
+
+### 测试服务插件
+
+[TestServicePlugin](mdc:src/main/java/com/ycbd/demo/plugin/TestServicePlugin.java) 采用了内部类的方式：
+
+- 主插件类: `TestServicePlugin`
+- 内部控制器类: `TestServiceController`
+- 内部命令结果类: `CommandResult`
+
+## 插件注册
+
+插件可以通过以下方式注册：
+
+1. **静态加载**: 将插件放在 `plugins` 目录下
+2. **动态加载**: 通过 [PluginController](mdc:src/main/java/com/ycbd/demo/controller/PluginController.java) 的API动态加载
+
+## 插件生命周期
+
+1. **初始化**: 调用 `init()` 方法
+2. **注册控制器**: 调用 `getControllers()` 方法获取并注册控制器
+3. **运行**: 插件正常运行
+4. **销毁**: 调用 `destroy()` 方法进行清理
+
+## 最佳实践
+
+1. 插件应该保持独立，最小化对主应用的依赖
+2. 使用合适的异常处理机制
+3. 提供清晰的API文档
+4. 确保资源在插件销毁时正确释放
