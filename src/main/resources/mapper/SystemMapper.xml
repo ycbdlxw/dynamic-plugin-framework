@@ -5,10 +5,10 @@
     <!-- 通用列表查询 -->
     <select id="getItemsData" resultType="map">
         SELECT
-        <if test="columns != null and columns != '' and columns != '*'">
+        <if test="columns != null and columns != ''">
             ${columns}
         </if>
-        <if test="columns == null or columns == '' or columns == '*'">
+        <if test="columns == null or columns == ''">
             *
         </if>
         FROM ${table}

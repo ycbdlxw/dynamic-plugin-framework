@@ -1,5 +1,34 @@
 ---
-description:
-globs:
+description: 
+globs: 
 alwaysApply: false
 ---
+# API和服务层
+
+## 控制器
+
+系统包含以下主要控制器：
+
+- **核心控制器**: [CoreController](mdc:src/main/java/com/ycbd/demo/controller/CoreController.java) - 核心业务功能
+- **通用控制器**: [CommonController](mdc:src/main/java/com/ycbd/demo/controller/CommonController.java) - 通用功能接口
+- **插件控制器**: [PluginController](mdc:src/main/java/com/ycbd/demo/controller/PluginController.java) - 插件管理接口
+- **遗留插件控制器**: [LegacyPluginController](mdc:src/main/java/com/ycbd/demo/controller/LegacyPluginController.java) - 支持旧版插件
+
+## 服务层
+
+系统的核心服务包括：
+
+- **基础服务**: [BaseService](mdc:src/main/java/com/ycbd/demo/service/BaseService.java) - 所有服务的基类
+- **通用服务**: [CommonService](mdc:src/main/java/com/ycbd/demo/service/CommonService.java) - 提供通用功能
+- **JWT服务**: [JwtService](mdc:src/main/java/com/ycbd/demo/service/JwtService.java) - 处理JSON Web Token
+- **操作日志服务**: [OperationLogService](mdc:src/main/java/com/ycbd/demo/service/OperationLogService.java) - 记录系统操作日志
+- **验证服务**: [ValidationService](mdc:src/main/java/com/ycbd/demo/service/ValidationService.java) - 数据验证
+
+## API响应格式
+
+API响应使用统一的格式，由 [ApiResponse](mdc:src/main/java/com/ycbd/demo/utils/ApiResponse.java) 类定义：
+
+- 成功响应: `{"code": 200, "message": "success", "data": {...}}`
+- 错误响应: `{"code": <错误代码>, "message": "<错误信息>", "data": null}`
+
+错误代码定义在 [ResultCode](mdc:src/main/java/com/ycbd/demo/utils/ResultCode.java) 类中。

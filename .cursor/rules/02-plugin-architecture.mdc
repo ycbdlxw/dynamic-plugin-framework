@@ -1,5 +1,38 @@
 ---
-description:
-globs:
+description: 
+globs: 
 alwaysApply: false
 ---
+# 插件系统架构
+
+## 插件接口
+
+所有插件必须实现 [IPlugin](mdc:src/main/java/com/ycbd/demo/plugin/IPlugin.java) 接口，该接口定义了插件的基本生命周期方法：
+- `init()`: 插件初始化
+- `destroy()`: 插件销毁
+- `getPluginInfo()`: 获取插件信息
+- `getControllers()`: 获取插件提供的控制器列表
+
+## 插件引擎
+
+[PluginEngine](mdc:src/main/java/com/ycbd/demo/plugin/PluginEngine.java) 负责管理所有插件的生命周期，包括：
+- 加载插件
+- 初始化插件
+- 维护插件列表
+- 销毁插件
+
+## 控制器集成
+
+插件可以通过 `getControllers()` 方法提供自己的 RESTful 接口，这些接口会被动态注册到应用程序中。
+
+## 插件开发流程
+
+1. 创建一个实现 `IPlugin` 接口的类
+2. 实现必要的生命周期方法
+3. 提供插件的业务逻辑和控制器
+4. 将插件放置在 `plugins` 目录下或通过API动态加载
+
+## 示例插件参考
+
+- 命令执行插件: [CommandExecutorPlugin](mdc:src/main/java/com/ycbd/demo/plugin/commandexecutor/CommandExecutorPlugin.java)
+- 测试服务插件: [TestServicePlugin](mdc:src/main/java/com/ycbd/demo/plugin/TestServicePlugin.java)

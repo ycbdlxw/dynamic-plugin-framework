@@ -54,4 +54,27 @@ CREATE TABLE plugin_config (
   class_name VARCHAR(255) NOT NULL,
   description VARCHAR(255),
   is_active BOOLEAN DEFAULT TRUE
+);
+
+-- AI 处理器配置表
+DROP TABLE IF EXISTS ai_processor_config;
+CREATE TABLE ai_processor_config (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  processor_name VARCHAR(100) NOT NULL UNIQUE,
+  class_name VARCHAR(255) NOT NULL,
+  description VARCHAR(255),
+  is_active BOOLEAN DEFAULT TRUE
+);
+
+-- 列校验规则表
+DROP TABLE IF EXISTS column_check_property;
+CREATE TABLE column_check_property (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  check_table VARCHAR(100) NOT NULL,
+  target_table VARCHAR(100) NOT NULL,
+  check_column VARCHAR(255) NOT NULL,
+  check_mode VARCHAR(50) NOT NULL,
+  check_order INT DEFAULT 1,
+  status INT DEFAULT 1,
+  errorMsg VARCHAR(255)
 ); 

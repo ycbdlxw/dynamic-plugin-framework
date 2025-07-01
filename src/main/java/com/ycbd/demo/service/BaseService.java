@@ -45,7 +45,8 @@ public class BaseService {
      * 获取单条记录
      */
     public Map<String, Object> getOne(String table, Map<String, Object> params) {
-        List<Map<String, Object>> results = queryList(table, 0, 1, "*", params, null, null, null);
+        // 传递 null 以避免在 MyBatis OGNL 表达式中出现 "*" 被解析为数值，导致 NumberFormatException
+        List<Map<String, Object>> results = queryList(table, 0, 1, null, params, null, null, null);
         return results.isEmpty() ? null : results.get(0);
     }
 
