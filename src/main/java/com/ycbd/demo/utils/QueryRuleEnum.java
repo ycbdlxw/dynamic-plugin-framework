@@ -12,11 +12,11 @@ public enum QueryRuleEnum {
     LEFTIN(" LEFTIN ", "leftin", "左边IN"),
     LIKE(" LIKE ", "like", "全模糊"),
     LIKEBINARY(" LIKE BINARY ", "like binary", "特殊字符查找"),
-    LEFT_LIKE(" LEFT_LIKE ", "left_like", "左模糊"),
-    RIGHT_LIKE(" RIGHT_LIKE ", "right_like", "右模糊"),
+    LEFT_LIKE(" LIKE ", "left_like", "左模糊"),
+    RIGHT_LIKE(" LIKE ", "right_like", "右模糊"),
     FIND_IN_SET(" FIND_IN_SET ", "find_in_set", "批量查询"),
     REGEXP(" REGEXP ", "regexp", "正则表达式"),
-    RANGE(" RANGE ", "RANGE", "范围"),
+    RANGE(" RANGE ", "range", "范围"),
     SQL_RULES("USE_SQL_RULES", "ext", "自定义SQL片段");
 
     private String value;
@@ -56,9 +56,13 @@ public enum QueryRuleEnum {
     }
 
     public static QueryRuleEnum getByValue(String value) {
+        if (value == null) {
+            return null;
+        }
 
+        String trimmedValue = value.trim();
         for (QueryRuleEnum val : values()) {
-            if (val.getValue().equals(value) || val.getCondition().equalsIgnoreCase(value.trim())) {
+            if (val.getValue().equals(trimmedValue) || val.getCondition().equalsIgnoreCase(trimmedValue)) {
                 return val;
             }
         }
@@ -66,8 +70,13 @@ public enum QueryRuleEnum {
     }
 
     public static QueryRuleEnum getByMsg(String value) {
+        if (value == null) {
+            return null;
+        }
+
+        String trimmedValue = value.trim();
         for (QueryRuleEnum val : values()) {
-            if (val.getMsg().equals(value) || val.getMsg().equalsIgnoreCase(value.trim())) {
+            if (val.getMsg().equals(trimmedValue) || val.getMsg().equalsIgnoreCase(trimmedValue)) {
                 return val;
             }
         }

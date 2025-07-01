@@ -1,6 +1,7 @@
 package com.ycbd.demo.service;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -263,38 +264,12 @@ public class BaseService {
         }
 
         // Step 1: 获取并转换字段属性
-        List<Map<String, Object>> originAttrs = getColumnAttributes(table, null);
+        List<Map<String, Object>> columnAttributes = getColumnAttributes(table, null);
         List<Map<String, Object>> attributesForBuilder = new ArrayList<>();
-        Map<String, Map<String, Object>> attrIndex = new HashMap<>();
-
-        for (Map<String, Object> attr : originAttrs) {
-            String prop = MapUtil.getStr(attr, "name");
-            if (StrUtil.isBlank(prop)) {
-                continue;
-            }
-
-            Map<String, Object> converted = new HashMap<>();
-            converted.put("prop", prop);
-            converted.put("queryType", MapUtil.getStr(attr, "querytype", "eq").toLowerCase());
-
-            String showType = MapUtil.getStr(attr, "showtype");
-            boolean isPri = MapUtil.getBool(attr, "ispri", false);
-            int columnType = 1; // 1=字符串, 2=数值,3=布尔
-            if ("number".equalsIgnoreCase(showType)) {
-                columnType = 2;
-            } else if ("switch".equalsIgnoreCase(showType)) {
-                columnType = 3;
-            } else if ("hidden".equalsIgnoreCase(showType) && isPri) {
-                columnType = 2;
-            }
-            converted.put("columnType", columnType);
-
-            attributesForBuilder.add(converted);
-            attrIndex.put(prop, converted);
-        }
+        Map<String, String> queryTypeOverrides = new HashMap<>();
 
         // Step 2: 处理参数，支持后缀 _like/_in/_between/_range
-        Map<String, Object> paraMapForBuilder = new HashMap<>();
+        Map<String, Object> processedParams = new HashMap<>();
 
         for (Map.Entry<String, Object> entry : params.entrySet()) {
             String originalKey = entry.getKey();
@@ -306,6 +281,7 @@ public class BaseService {
             String columnName = originalKey;
             String overrideQueryType = null;
 
+            // 处理特殊后缀
             if (originalKey.endsWith("_like")) {
                 columnName = originalKey.substring(0, originalKey.length() - 5);
                 overrideQueryType = "like";
@@ -316,77 +292,149 @@ public class BaseService {
                 int idx = originalKey.lastIndexOf("_");
                 columnName = originalKey.substring(0, idx);
                 overrideQueryType = "range";
+            } else if (valueObj instanceof List || (valueObj instanceof String && ((String) valueObj).contains(","))) {
+                // 如果值为列表或以逗号分隔，自动识别为 IN 查询
+                overrideQueryType = "in";
             }
 
-            // 如果仍未确定查询类型，且值为列表或以逗号分隔，自动识别为 IN 查询（非布尔列）
-            if (overrideQueryType == null) {
-                if (valueObj instanceof List) {
-                    overrideQueryType = "in";
-                } else if (valueObj instanceof String && ((String) valueObj).contains(",")) {
-                    overrideQueryType = "in";
-                }
-            }
-
-            // 转换 value 为字符串，便于 SqlWhereBuilder 处理
+            // 转换值为字符串
             String valueStr = convertValueToString(valueObj, overrideQueryType);
-            paraMapForBuilder.put(columnName, valueStr);
+            processedParams.put(columnName, valueStr);
 
-            // 覆盖属性中的queryType
+            // 记录查询类型覆盖
             if (overrideQueryType != null) {
-                Map<String, Object> attr = attrIndex.get(columnName);
-                if (attr != null) {
-                    attr.put("queryType", overrideQueryType);
-                } else {
-                    // 若不存在属性记录，则临时创建一个默认
-                    Map<String, Object> tempAttr = new HashMap<>();
-                    tempAttr.put("prop", columnName);
-                    tempAttr.put("queryType", overrideQueryType);
-                    tempAttr.put("columnType", 1);
-                    attributesForBuilder.add(tempAttr);
-                }
+                queryTypeOverrides.put(columnName, overrideQueryType);
             }
         }
 
-        StringBuilder whereBuilder = SqlWhereBuilder.build(table, paraMapForBuilder, attributesForBuilder, true);
-        return whereBuilder.toString();
+        // Step 3: 构建属性列表
+        for (Map<String, Object> attr : columnAttributes) {
+            String propName = MapUtil.getStr(attr, "name");
+            if (StrUtil.isBlank(propName) || !processedParams.containsKey(propName)) {
+                continue;
+            }
+
+            Map<String, Object> convertedAttr = new HashMap<>();
+            convertedAttr.put("prop", propName);
+
+            // 应用查询类型覆盖
+            String queryType = queryTypeOverrides.containsKey(propName)
+                    ? queryTypeOverrides.get(propName)
+                    : MapUtil.getStr(attr, "querytype", "eq").toLowerCase();
+            convertedAttr.put("queryType", queryType);
+
+            // 确定列类型
+            String showType = MapUtil.getStr(attr, "showtype");
+            boolean isPri = MapUtil.getBool(attr, "ispri", false);
+            int columnType = 1; // 1=字符串, 2=数值, 3=布尔
+            if ("number".equalsIgnoreCase(showType)) {
+                columnType = 2;
+            } else if ("switch".equalsIgnoreCase(showType)) {
+                columnType = 3;
+            } else if ("hidden".equalsIgnoreCase(showType) && isPri) {
+                columnType = 2;
+            }
+            convertedAttr.put("columnType", columnType);
+
+            attributesForBuilder.add(convertedAttr);
+        }
+
+        // 处理未在属性表中定义的字段
+        for (String propName : processedParams.keySet()) {
+            boolean exists = attributesForBuilder.stream()
+                    .anyMatch(attr -> propName.equals(MapUtil.getStr(attr, "prop")));
+
+            if (!exists) {
+                Map<String, Object> tempAttr = new HashMap<>();
+                tempAttr.put("prop", propName);
+                tempAttr.put("queryType", queryTypeOverrides.getOrDefault(propName, "eq"));
+                tempAttr.put("columnType", 1); // 默认为字符串类型
+                attributesForBuilder.add(tempAttr);
+            }
+        }
+
+        // 调用SqlWhereBuilder构建WHERE子句
+        return SqlWhereBuilder.build(table, processedParams, attributesForBuilder, true).toString();
     }
 
     /**
      * 根据查询类型将参数值转换为 SqlWhereBuilder 期望的字符串格式。
      */
     private String convertValueToString(Object valueObj, String queryType) {
+        if (valueObj == null) {
+            return "";
+        }
+
+        // 处理List类型
         if (valueObj instanceof List) {
             List<?> list = (List<?>) valueObj;
             if (list.isEmpty()) {
                 return "";
             }
 
-            if ("in".equalsIgnoreCase(queryType)) {
-                return list.stream().map(Object::toString).collect(Collectors.joining(","));
-            }
-
             if ("range".equalsIgnoreCase(queryType)) {
                 if (list.size() >= 2) {
                     return list.get(0).toString() + "~" + list.get(1).toString();
-                } else {
+                } else if (list.size() == 1) {
                     return list.get(0).toString();
                 }
+                return "";
             }
 
-            // 默认逗号分隔
-            return list.stream().map(Object::toString).collect(Collectors.joining(","));
+            // 默认使用逗号分隔（适用于in查询和其他类型）
+            return list.stream()
+                    .filter(item -> item != null)
+                    .map(Object::toString)
+                    .collect(Collectors.joining(","));
         }
 
+        // 处理布尔值
         if (valueObj instanceof Boolean) {
             return ((Boolean) valueObj) ? "1" : "0";
         }
 
-        // 针对字符串值：若当前 queryType 指定为 IN，但值中已包含逗号，则直接返回原始字符串（逗号分隔）
-        if (queryType != null && "in".equalsIgnoreCase(queryType) && valueObj instanceof String) {
-            return (String) valueObj;
+        // 处理数组
+        if (valueObj.getClass().isArray()) {
+            Object[] array = (Object[]) valueObj;
+            if (array.length == 0) {
+                return "";
+            }
+
+            if ("range".equalsIgnoreCase(queryType)) {
+                if (array.length >= 2) {
+                    return array[0].toString() + "~" + array[1].toString();
+                } else if (array.length == 1) {
+                    return array[0].toString();
+                }
+                return "";
+            }
+
+            // 默认使用逗号分隔
+            return Arrays.stream(array)
+                    .filter(item -> item != null)
+                    .map(Object::toString)
+                    .collect(Collectors.joining(","));
         }
 
-        return valueObj.toString();
+        // 处理特殊类型
+        if (valueObj.getClass().getName().equals("cn.hutool.core.convert.NumberWithFormat")) {
+            return valueObj.toString();
+        }
+
+        // 处理字符串类型
+        String valueStr = valueObj.toString();
+
+        // 针对字符串值：若当前 queryType 指定为 range，但值中已包含分隔符，则直接返回原始字符串
+        if ("range".equalsIgnoreCase(queryType) && (valueStr.contains("~") || valueStr.contains("至") || valueStr.contains(","))) {
+            return valueStr;
+        }
+
+        // 针对字符串值：若当前 queryType 指定为 IN，但值中已包含逗号，则直接返回原始字符串
+        if ("in".equalsIgnoreCase(queryType) && valueStr.contains(",")) {
+            return valueStr;
+        }
+
+        return valueStr;
     }
 
     /**

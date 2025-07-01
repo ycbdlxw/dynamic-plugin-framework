@@ -34,10 +34,12 @@ public class SqlWhereBuilder {
 
         for (Map.Entry<String, Object> paraEntry : paraMap.entrySet()) {
             String key = paraEntry.getKey();
-            String value = MapUtil.getStr(paraMap, key);
-            if (StrUtil.isEmpty(value)) {
+            Object valueObj = paraEntry.getValue();
+            if (valueObj == null || "".equals(valueObj)) {
                 continue;
             }
+
+            String value = valueObj instanceof String ? (String) valueObj : String.valueOf(valueObj);
 
             Optional<Map<String, Object>> attributeOpt = attributeList.stream()
                     .filter(map -> MapUtil.getStr(map, "prop").equals(key))
@@ -51,11 +53,12 @@ public class SqlWhereBuilder {
 
                 String columnName = table + ".`" + key + "`";
                 String queryType = MapUtil.getStr(attribute, "queryType", "eq");
-                int columnType = MapUtil.getInt(attribute, "columnType", -1);
+                int columnType = MapUtil.getInt(attribute, "columnType", 1); // 默认为字符串类型
 
-                sqlBuilder.append(buildCondition(columnName, value, queryType, columnType));
-            } else {
-                System.out.println("Key not found in attribute list: " + key);
+                String condition = buildCondition(columnName, value, queryType, columnType);
+                if (StrUtil.isNotEmpty(condition)) {
+                    sqlBuilder.append(condition);
+                }
             }
         }
 
@@ -72,7 +75,16 @@ public class SqlWhereBuilder {
      * @return 构建好的单个条件字符串
      */
     private static String buildCondition(String columnName, String value, String queryType, int columnType) {
+        if (StrUtil.isEmpty(value)) {
+            return "";
+        }
+
         QueryRuleEnum comparison = QueryRuleEnum.getByValue(queryType.toLowerCase());
+        if (comparison == null) {
+            // 默认使用等于查询
+            comparison = QueryRuleEnum.EQ;
+        }
+
         StringBuilder condition = new StringBuilder();
 
         switch (comparison) {
@@ -83,13 +95,29 @@ public class SqlWhereBuilder {
                 condition.append(buildLikeCondition(columnName, value));
                 break;
             case LEFT_LIKE:
-                condition.append(columnName).append(comparison.getValue()).append("'%").append(value).append("'");
+                condition.append(columnName).append(" LIKE ").append("'%").append(escapeValue(value)).append("'");
+                break;
+            case RIGHT_LIKE:
+                condition.append(columnName).append(" LIKE ").append("'").append(escapeValue(value)).append("%'");
                 break;
             case IN:
                 condition.append(buildInCondition(columnName, value, columnType));
                 break;
-            default:
+            case GT:
+            case GE:
+            case LT:
+            case LE:
+            case EQ:
+            case NE:
                 condition.append(columnName).append(comparison.getValue());
+                condition.append(formatValue(value, columnType));
+                break;
+            case SQL_RULES:
+                // 自定义SQL片段，直接使用
+                condition.append(value);
+                break;
+            default:
+                condition.append(columnName).append(" = ");
                 condition.append(formatValue(value, columnType));
         }
 
@@ -105,7 +133,22 @@ public class SqlWhereBuilder {
      * @return 构建好的范围查询条件
      */
     private static String buildRangeCondition(String columnName, String value, int columnType) {
-        String[] parts = value.split("[~至]", 2);
+        if (StrUtil.isEmpty(value)) {
+            return "";
+        }
+
+        String[] parts;
+        if (value.contains("~")) {
+            parts = value.split("~", 2);
+        } else if (value.contains("至")) {
+            parts = value.split("至", 2);
+        } else if (value.contains(",")) {
+            parts = value.split(",", 2);
+        } else {
+            // 单值处理为大于等于
+            return columnName + " >= " + formatValue(value.trim(), columnType);
+        }
+
         String start = parts[0].trim();
         String end = parts.length > 1 ? parts[1].trim() : "";
 
@@ -127,11 +170,42 @@ public class SqlWhereBuilder {
      * @return 构建好的模糊查询条件
      */
     private static String buildLikeCondition(String columnName, String value) {
-        if (value.contains(",")) {
-            return generateSQL(value, columnName);
-        } else {
-            return columnName + " LIKE '%" + value + "%'";
+        if (StrUtil.isEmpty(value)) {
+            return "";
         }
+
+        if (value.contains(",")) {
+            return buildMultiLikeCondition(columnName, value);
+        } else {
+            return columnName + " LIKE '%" + escapeValue(value) + "%'";
+        }
+    }
+
+    /**
+     * 构建多值模糊查询条件（OR连接）。
+     *
+     * @param columnName 列名
+     * @param value 逗号分隔的多个值
+     * @return 构建好的多值模糊查询条件
+     */
+    private static String buildMultiLikeCondition(String columnName, String value) {
+        String[] values = value.split(",");
+        StringBuilder sb = new StringBuilder("(");
+
+        for (int i = 0; i < values.length; i++) {
+            String trimmedValue = values[i].trim();
+            if (StrUtil.isEmpty(trimmedValue)) {
+                continue;
+            }
+
+            if (i > 0) {
+                sb.append(" OR ");
+            }
+            sb.append(columnName).append(" LIKE '%").append(escapeValue(trimmedValue)).append("%'");
+        }
+
+        sb.append(")");
+        return sb.toString();
     }
 
     /**
@@ -143,10 +217,25 @@ public class SqlWhereBuilder {
      * @return 构建好的 IN 查询条件
      */
     private static String buildInCondition(String columnName, String value, int columnType) {
+        if (StrUtil.isEmpty(value)) {
+            return "";
+        }
+
         String[] values = value.split(",");
-        String formattedValues = Arrays.stream(values)
-                .map(v -> formatValue(v.trim(), columnType))
+        // 过滤空值
+        List<String> validValues = Arrays.stream(values)
+                .map(String::trim)
+                .filter(v -> !v.isEmpty())
+                .collect(Collectors.toList());
+
+        if (validValues.isEmpty()) {
+            return "";
+        }
+
+        String formattedValues = validValues.stream()
+                .map(v -> formatValue(v, columnType))
                 .collect(Collectors.joining(", "));
+
         return columnName + " IN (" + formattedValues + ")";
     }
 
@@ -158,35 +247,42 @@ public class SqlWhereBuilder {
      * @return 格式化后的值
      */
     private static String formatValue(String value, int columnType) {
+        if (value == null) {
+            return "NULL";
+        }
+
         // 数值(2) 或布尔(3) 类型: 仅当值本身是纯数字(含可选小数)时直接返回；
         // 否则按字符串处理并加引号，防止诸如 PENDING_CHECK 之类的枚举值被误认为列名导致 SQL 错误。
         if (columnType == 2 || columnType == 3) {
             // 判断是否为纯数字（支持整数和小数）
-            if (value != null && value.matches("-?\\d+(\\.\\d+)?")) {
+            if (value.matches("-?\\d+(\\.\\d+)?")) {
                 return value;
             }
+
+            // 布尔值特殊处理
+            if (columnType == 3) {
+                if ("true".equalsIgnoreCase(value) || "1".equals(value) || "yes".equalsIgnoreCase(value)) {
+                    return "1";
+                } else if ("false".equalsIgnoreCase(value) || "0".equals(value) || "no".equalsIgnoreCase(value)) {
+                    return "0";
+                }
+            }
         }
+
         // 其余情况一律按字符串处理并转义单引号
-        return "'" + value.replace("'", "''") + "'";
+        return "'" + escapeValue(value) + "'";
     }
 
     /**
-     * 为逗号分隔的多个值生成 SQL 条件。
+     * 转义SQL字符串中的特殊字符
      *
-     * @param values 逗号分隔的多个值
-     * @param columnString 列名
-     * @return 生成的 SQL 条件
+     * @param value 原始值
+     * @return 转义后的值
      */
-    private static String generateSQL(String values, String columnString) {
-        StringBuilder sb = new StringBuilder();
-        String[] valueArray = values.split(",");
-        for (String value : valueArray) {
-            String trimmedValue = value.trim();
-            if (sb.length() > 0) {
-                sb.append(" OR ");
-            }
-            sb.append(columnString).append(" LIKE '%").append(trimmedValue).append("%'");
+    private static String escapeValue(String value) {
+        if (value == null) {
+            return "";
         }
-        return sb.toString();
+        return value.replace("'", "''");
     }
 }
