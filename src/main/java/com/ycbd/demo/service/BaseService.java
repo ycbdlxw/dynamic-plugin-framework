@@ -1,11 +1,9 @@
 package com.ycbd.demo.service;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -13,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.ycbd.demo.mapper.SystemMapper;
 import com.ycbd.demo.utils.SqlWhereBuilder;
+import com.ycbd.demo.utils.Tools;
 
 import cn.hutool.core.map.MapUtil;
 import cn.hutool.core.util.StrUtil;
@@ -37,7 +36,7 @@ public class BaseService {
         // 将所有 key 统一转为小写，避免 H2 返回大写列名导致获取失败
         List<Map<String, Object>> normalized = new ArrayList<>(raw.size());
         for (Map<String, Object> item : raw) {
-            normalized.add(toLowerCaseKeyMap(item));
+            normalized.add(Tools.toLowerCaseKeyMap(item));
         }
         return normalized;
     }
@@ -67,7 +66,7 @@ public class BaseService {
         List<Map<String, Object>> raw = systemMapper.getColumnAttributes(table, attributeType);
         List<Map<String, Object>> normalized = new ArrayList<>(raw.size());
         for (Map<String, Object> item : raw) {
-            Map<String, Object> lower = toLowerCaseKeyMap(item);
+            Map<String, Object> lower = Tools.toLowerCaseKeyMap(item);
             // 关键字段取值也转小写，方便后续比较
             Object colName = lower.get("name");
             if (colName != null) {
@@ -107,18 +106,7 @@ public class BaseService {
     @Transactional
     public long save(String table, Map<String, Object> data) {
         // 预处理数据，确保所有值都是MyBatis可以处理的类型
-        Map<String, Object> processedData = new HashMap<>();
-        for (Map.Entry<String, Object> entry : data.entrySet()) {
-            Object value = entry.getValue();
-            // 如果是复杂对象，转换为字符串
-            if (value != null && (value.getClass().getName().equals("cn.hutool.core.convert.NumberWithFormat")
-                    || value.getClass().isArray() || value instanceof List)) {
-                processedData.put(entry.getKey(), String.valueOf(value));
-            } else {
-                processedData.put(entry.getKey(), value);
-            }
-        }
-
+        Map<String, Object> processedData = Tools.processMapForMyBatis(data);
         systemMapper.insertData(table, processedData);
         return MapUtil.getLong(processedData, "id");
     }
@@ -133,21 +121,7 @@ public class BaseService {
         }
 
         // 预处理数据，确保所有值都是MyBatis可以处理的类型
-        List<Map<String, Object>> processedData = new ArrayList<>();
-        for (Map<String, Object> item : saveData) {
-            Map<String, Object> processedItem = new HashMap<>();
-            for (Map.Entry<String, Object> entry : item.entrySet()) {
-                Object value = entry.getValue();
-                // 如果是复杂对象，转换为字符串
-                if (value != null && (value.getClass().getName().equals("cn.hutool.core.convert.NumberWithFormat")
-                        || value.getClass().isArray() || value instanceof List)) {
-                    processedItem.put(entry.getKey(), String.valueOf(value));
-                } else {
-                    processedItem.put(entry.getKey(), value);
-                }
-            }
-            processedData.add(processedItem);
-        }
+        List<Map<String, Object>> processedData = Tools.processMapListForMyBatis(saveData);
 
         // 构建列名
         StringBuilder columnsBuilder = new StringBuilder();
@@ -173,18 +147,7 @@ public class BaseService {
         }
 
         // 预处理数据，确保所有值都是MyBatis可以处理的类型
-        Map<String, Object> processedData = new HashMap<>();
-        for (Map.Entry<String, Object> entry : data.entrySet()) {
-            Object value = entry.getValue();
-            // 如果是复杂对象，转换为字符串
-            if (value != null && (value.getClass().getName().equals("cn.hutool.core.convert.NumberWithFormat")
-                    || value.getClass().isArray() || value instanceof List)) {
-                processedData.put(entry.getKey(), String.valueOf(value));
-            } else {
-                processedData.put(entry.getKey(), value);
-            }
-        }
-
+        Map<String, Object> processedData = Tools.processMapForMyBatis(data);
         systemMapper.updateData(table, processedData, primaryKey, id);
     }
 
@@ -203,18 +166,7 @@ public class BaseService {
         }
 
         // 预处理数据，确保所有值都是MyBatis可以处理的类型
-        Map<String, Object> processedData = new HashMap<>();
-        for (Map.Entry<String, Object> entry : data.entrySet()) {
-            Object value = entry.getValue();
-            // 如果是复杂对象，转换为字符串
-            if (value != null && (value.getClass().getName().equals("cn.hutool.core.convert.NumberWithFormat")
-                    || value.getClass().isArray() || value instanceof List)) {
-                processedData.put(entry.getKey(), String.valueOf(value));
-            } else {
-                processedData.put(entry.getKey(), value);
-            }
-        }
-
+        Map<String, Object> processedData = Tools.processMapForMyBatis(data);
         systemMapper.updateDataBatch(table, processedData, primaryKey, ids);
     }
 
@@ -298,7 +250,7 @@ public class BaseService {
             }
 
             // 转换值为字符串
-            String valueStr = convertValueToString(valueObj, overrideQueryType);
+            String valueStr = Tools.convertValueToString(valueObj, overrideQueryType);
             processedParams.put(columnName, valueStr);
 
             // 记录查询类型覆盖
@@ -355,102 +307,5 @@ public class BaseService {
 
         // 调用SqlWhereBuilder构建WHERE子句
         return SqlWhereBuilder.build(table, processedParams, attributesForBuilder, true).toString();
-    }
-
-    /**
-     * 根据查询类型将参数值转换为 SqlWhereBuilder 期望的字符串格式。
-     */
-    private String convertValueToString(Object valueObj, String queryType) {
-        if (valueObj == null) {
-            return "";
-        }
-
-        // 处理List类型
-        if (valueObj instanceof List) {
-            List<?> list = (List<?>) valueObj;
-            if (list.isEmpty()) {
-                return "";
-            }
-
-            if ("range".equalsIgnoreCase(queryType)) {
-                if (list.size() >= 2) {
-                    return list.get(0).toString() + "~" + list.get(1).toString();
-                } else if (list.size() == 1) {
-                    return list.get(0).toString();
-                }
-                return "";
-            }
-
-            // 默认使用逗号分隔（适用于in查询和其他类型）
-            return list.stream()
-                    .filter(item -> item != null)
-                    .map(Object::toString)
-                    .collect(Collectors.joining(","));
-        }
-
-        // 处理布尔值
-        if (valueObj instanceof Boolean) {
-            return ((Boolean) valueObj) ? "1" : "0";
-        }
-
-        // 处理数组
-        if (valueObj.getClass().isArray()) {
-            Object[] array = (Object[]) valueObj;
-            if (array.length == 0) {
-                return "";
-            }
-
-            if ("range".equalsIgnoreCase(queryType)) {
-                if (array.length >= 2) {
-                    return array[0].toString() + "~" + array[1].toString();
-                } else if (array.length == 1) {
-                    return array[0].toString();
-                }
-                return "";
-            }
-
-            // 默认使用逗号分隔
-            return Arrays.stream(array)
-                    .filter(item -> item != null)
-                    .map(Object::toString)
-                    .collect(Collectors.joining(","));
-        }
-
-        // 处理特殊类型
-        if (valueObj.getClass().getName().equals("cn.hutool.core.convert.NumberWithFormat")) {
-            return valueObj.toString();
-        }
-
-        // 处理字符串类型
-        String valueStr = valueObj.toString();
-
-        // 针对字符串值：若当前 queryType 指定为 range，但值中已包含分隔符，则直接返回原始字符串
-        if ("range".equalsIgnoreCase(queryType) && (valueStr.contains("~") || valueStr.contains("至") || valueStr.contains(","))) {
-            return valueStr;
-        }
-
-        // 针对字符串值：若当前 queryType 指定为 IN，但值中已包含逗号，则直接返回原始字符串
-        if ("in".equalsIgnoreCase(queryType) && valueStr.contains(",")) {
-            return valueStr;
-        }
-
-        return valueStr;
-    }
-
-    /**
-     * 将 Map 的 key 统一转换为小写（非递归）
-     */
-    private Map<String, Object> toLowerCaseKeyMap(Map<String, Object> source) {
-        Map<String, Object> target = new HashMap<>();
-        if (source == null) {
-            return target;
-        }
-        for (Map.Entry<String, Object> entry : source.entrySet()) {
-            String key = entry.getKey();
-            if (key != null) {
-                target.put(key.toLowerCase(), entry.getValue());
-            }
-        }
-        return target;
     }
 }

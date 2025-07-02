@@ -1,12 +1,10 @@
 package com.ycbd.demo.controller;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -14,6 +12,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.ycbd.demo.security.UserContext;
+import com.ycbd.demo.service.BaseService;
 import com.ycbd.demo.utils.ApiResponse;
 
 @RestController
@@ -21,68 +21,35 @@ import com.ycbd.demo.utils.ApiResponse;
 public class CommonController {
 
     @Autowired
-    private JdbcTemplate jdbcTemplate;
+    private BaseService baseService;
 
     @PostMapping("/save")
     public ApiResponse<Map<String, Object>> save(
             @RequestParam String targetTable,
             @RequestBody Map<String, Object> data) {
         try {
+            // 安全检查：获取当前用户ID
+            Integer userId = UserContext.getUserId();
+            if (userId == null) {
+                return ApiResponse.failed("未授权的操作");
+            }
+
+            // 添加审计字段
+            data.put("update_by", userId);
+
             // 简单检查ID是否存在，确定是创建还是更新操作
             Object id = data.get("id");
             Map<String, Object> result = new HashMap<>();
 
             if (id != null) {
-                // 构建更新SQL
-                StringBuilder sql = new StringBuilder("UPDATE ").append(targetTable).append(" SET ");
-                List<String> setClauses = new ArrayList<>();
-
-                for (Map.Entry<String, Object> entry : data.entrySet()) {
-                    if (!"id".equals(entry.getKey())) {
-                        setClauses.add(entry.getKey() + " = ?");
-                    }
-                }
-
-                sql.append(String.join(", ", setClauses));
-                sql.append(" WHERE id = ?");
-
-                // 准备参数
-                List<Object> params = new ArrayList<>();
-                for (Map.Entry<String, Object> entry : data.entrySet()) {
-                    if (!"id".equals(entry.getKey())) {
-                        params.add(entry.getValue());
-                    }
-                }
-                params.add(id);
-
-                // 执行更新
-                jdbcTemplate.update(sql.toString(), params.toArray());
+                // 使用BaseService进行更新
+                baseService.update(targetTable, data, id);
                 result.put("id", id);
             } else {
-                // 构建插入SQL
-                StringBuilder sql = new StringBuilder("INSERT INTO ").append(targetTable).append(" (");
-
-                // 字段列表
-                List<String> columns = new ArrayList<>(data.keySet());
-                sql.append(String.join(", ", columns));
-
-                // 值占位符
-                sql.append(") VALUES (");
-                List<String> placeholders = new ArrayList<>();
-                for (int i = 0; i < columns.size(); i++) {
-                    placeholders.add("?");
-                }
-                sql.append(String.join(", ", placeholders));
-                sql.append(")");
-
-                System.out.println("SQL: " + sql);
-                System.out.println("Params: " + data.values());
-
-                // 执行插入
-                jdbcTemplate.update(sql.toString(), data.values().toArray());
-
-                // 获取自增ID
-                Long newId = jdbcTemplate.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
+                // 添加创建者信息
+                data.put("create_by", userId);
+                // 使用BaseService进行保存
+                long newId = baseService.save(targetTable, data);
                 result.put("id", newId);
             }
 
@@ -98,32 +65,33 @@ public class CommonController {
             @RequestParam String targetTable,
             @RequestParam Map<String, Object> allParams) {
         try {
+            // 安全检查：获取当前用户ID
+            Integer userId = UserContext.getUserId();
+            if (userId == null) {
+                return ApiResponse.failed("未授权的操作");
+            }
+
             // 移除targetTable参数，它不应该作为查询条件
             allParams.remove("targetTable");
 
-            // 构建简单的查询条件
-            StringBuilder whereClause = new StringBuilder();
-            List<Object> params = new ArrayList<>();
-
-            if (!allParams.isEmpty()) {
-                whereClause.append(" WHERE ");
-                List<String> conditions = new ArrayList<>();
-
-                for (Map.Entry<String, Object> entry : allParams.entrySet()) {
-                    conditions.add(entry.getKey() + " = ?");
-                    params.add(entry.getValue());
-                }
-
-                whereClause.append(String.join(" AND ", conditions));
+            // 获取分页参数
+            int pageIndex = 0;
+            int pageSize = 100;
+            if (allParams.containsKey("pageIndex")) {
+                pageIndex = Integer.parseInt(allParams.get("pageIndex").toString());
+                allParams.remove("pageIndex");
+            }
+            if (allParams.containsKey("pageSize")) {
+                pageSize = Integer.parseInt(allParams.get("pageSize").toString());
+                allParams.remove("pageSize");
             }
 
-            // 执行查询
-            String sql = "SELECT * FROM " + targetTable + whereClause.toString() + " ORDER BY id ASC LIMIT 100";
-            List<Map<String, Object>> items = jdbcTemplate.queryForList(sql, params.toArray());
+            // 使用BaseService查询列表
+            List<Map<String, Object>> items = baseService.queryList(
+                    targetTable, pageIndex, pageSize, null, allParams, null, "id ASC", null);
 
             // 获取总数
-            String countSql = "SELECT COUNT(*) FROM " + targetTable + whereClause.toString();
-            int total = jdbcTemplate.queryForObject(countSql, params.toArray(), Integer.class);
+            int total = baseService.count(targetTable, allParams, null);
 
             Map<String, Object> result = new HashMap<>();
             result.put("items", items);
@@ -140,15 +108,29 @@ public class CommonController {
             @RequestParam String targetTable,
             @RequestParam Integer id) {
         try {
-            String sql = "DELETE FROM " + targetTable + " WHERE id = ?";
-            int affected = jdbcTemplate.update(sql, id);
+            // 安全检查：获取当前用户ID
+            Integer userId = UserContext.getUserId();
+            if (userId == null) {
+                return ApiResponse.failed("未授权的操作");
+            }
+
+            // 使用BaseService进行删除
+            baseService.delete(targetTable, id);
 
             Map<String, Object> result = new HashMap<>();
-            result.put("affected", affected);
+            result.put("affected", 1);
 
             return ApiResponse.success(result);
         } catch (Exception e) {
             return ApiResponse.failed("删除失败: " + e.getMessage());
         }
+    }
+
+    /**
+     * 健康检查端点
+     */
+    @GetMapping("/health")
+    public ApiResponse<String> healthCheck() {
+        return ApiResponse.success("Service is running");
     }
 }
