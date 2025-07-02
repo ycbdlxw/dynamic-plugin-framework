@@ -1,0 +1,37 @@
+# Maven 构建目录
+target/
+
+# IDE 文件
+.idea/
+*.iml
+.vscode/
+.project
+.classpath
+.settings/
+
+# 编译文件
+*.class
+*.jar
+*.war
+*.ear
+*.zip
+*.tar.gz
+*.rar
+
+# 日志文件
+*.log
+logs/
+
+# 测试结果目录和文件
+src/main/resources/test/test_results/
+src/main/resources/test/test_results/*.txt
+**/test_results/
+**/test_results/*.txt
+
+# 本地配置文件
+application-local.properties
+application-local.yml
+
+# 操作系统文件
+.DS_Store
+Thumbs.db 
