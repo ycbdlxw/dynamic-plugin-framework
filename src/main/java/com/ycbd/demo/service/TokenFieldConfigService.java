@@ -45,7 +45,7 @@ public class TokenFieldConfigService {
                 }
                 Map<String, Object> otherMap = objectMapper.readValue(String.valueOf(otherObj), Map.class);
                 if (Boolean.TRUE.equals(otherMap.get("isTokenField"))) {
-                    String tokenName = otherMap.getOrDefault("tokenName", attr.get("name")).toString();
+                    String tokenName = otherMap.getOrDefault("tokenName", attr.get("column_name")).toString();
                     result.put(tokenName, true);
                 }
             }

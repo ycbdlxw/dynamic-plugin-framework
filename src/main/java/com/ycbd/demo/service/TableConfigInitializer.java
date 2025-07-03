@@ -48,12 +48,12 @@ public class TableConfigInitializer implements ApplicationRunner {
 
     private void processOneTable(String table) {
         try {
-            Map<String, Object> exists = baseService.getOne("table_attribute", Map.of("dbtable", table));
+            Map<String, Object> exists = baseService.getOne("table_attribute", Map.of("db_table", table));
             if (exists == null) {
                 Map<String, Object> tableAttr = new HashMap<>();
-                tableAttr.put("dbtable", table);
-                tableAttr.put("tableName", table);
-                tableAttr.put("mainKey", "id");
+                tableAttr.put("db_table", table);
+                tableAttr.put("table_name", table);
+                tableAttr.put("main_key", "id");
                 tableAttr.put("sort", "id DESC");
                 baseService.save("table_attribute", tableAttr);
                 LOGGER.info("已写入 table_attribute: {}", table);
@@ -69,26 +69,26 @@ public class TableConfigInitializer implements ApplicationRunner {
                         String typeName = rs.getString("TYPE_NAME");
 
                         Map<String, Object> existingCol = baseService.getOne("column_attribute",
-                                Map.of("dbTableName", table, "name", colName));
+                                Map.of("db_table_name", table, "column_name", colName));
 
                         boolean textType = StrUtil.containsAnyIgnoreCase(typeName, "char", "text", "clob");
 
                         if (existingCol == null) {
                             Map<String, Object> colAttr = new HashMap<>();
-                            colAttr.put("dbTableName", table);
-                            colAttr.put("name", colName);
-                            colAttr.put("pagename", colName);
-                            colAttr.put("IsShowInList", true);
-                            colAttr.put("searchFlag", textType);
-                            colAttr.put("editFlag", false);
-                            colAttr.put("IsRequired", false);
-                            colAttr.put("queryType", "=");
-                            colAttr.put("showType", "input");
-                            colAttr.put("OrderNo", orderNo++);
+                            colAttr.put("db_table_name", table);
+                            colAttr.put("column_name", colName);
+                            colAttr.put("page_name", colName);
+                            colAttr.put("is_show_in_list", true);
+                            colAttr.put("search_flag", textType);
+                            colAttr.put("edit_flag", false);
+                            colAttr.put("is_required", false);
+                            colAttr.put("query_type", "=");
+                            colAttr.put("show_type", "input");
+                            colAttr.put("order_no", orderNo++);
 
                             if ("id".equalsIgnoreCase(colName)) {
-                                colAttr.put("IsShowInList", false);
-                                colAttr.put("showType", "hidden");
+                                colAttr.put("is_show_in_list", false);
+                                colAttr.put("show_type", "hidden");
                             }
                             baseService.save("column_attribute", colAttr);
                         } else {
@@ -97,15 +97,15 @@ public class TableConfigInitializer implements ApplicationRunner {
                             updateMap.put("id", existingCol.get("id"));
 
                             // 动态规则：
-                            // 1. searchFlag 与字段类型关联
-                            updateMap.put("searchFlag", textType);
+                            // 1. search_flag 与字段类型关联
+                            updateMap.put("search_flag", textType);
 
-                            // 2. IsShowInList：主键或大字段(>1024)默认不显示
+                            // 2. is_show_in_list：主键或大字段(>1024)默认不显示
                             boolean showInList = !"id".equalsIgnoreCase(colName) && !"text".equalsIgnoreCase(typeName);
-                            updateMap.put("IsShowInList", showInList);
+                            updateMap.put("is_show_in_list", showInList);
 
-                            // 3. editFlag：仅非主键且非只读字段允许编辑
-                            updateMap.put("editFlag", !"id".equalsIgnoreCase(colName));
+                            // 3. edit_flag：仅非主键且非只读字段允许编辑
+                            updateMap.put("edit_flag", !"id".equalsIgnoreCase(colName));
 
                             baseService.update("column_attribute", updateMap, existingCol.get("id"));
                         }

@@ -5,8 +5,24 @@
 # 日期：$(date +%Y-%m-%d)
 
 # 设置变量
+# 脚本当前所在目录
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# 计算路径
+# TEST_DIR 是脚本所在目录的上一级 (即 test 目录)
+TEST_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+# PROJECT_ROOT = 从 test 目录向上四级
+PROJECT_ROOT="$(cd "$TEST_DIR/../../.." && pwd)"
+
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-TEST_DIR="src/main/resources/test"
+
+# 确保测试目录正确
+if [ ! -d "$TEST_DIR/runs" ]; then
+  echo "无法确定测试目录，当前 TEST_DIR=$TEST_DIR" >&2
+  exit 1
+fi
+
+# 结果目录和汇总文件
 RESULT_DIR="$TEST_DIR/test_results"
 SUMMARY_FILE="$RESULT_DIR/${TIMESTAMP}_test_summary.txt"
 
@@ -14,8 +30,8 @@ SUMMARY_FILE="$RESULT_DIR/${TIMESTAMP}_test_summary.txt"
 mkdir -p $RESULT_DIR
 
 # 确保脚本可执行
-chmod +x $TEST_DIR/runs/test_where_builder.sh
-chmod +x $TEST_DIR/runs/capture_sql_log.sh
+chmod +x "$TEST_DIR/runs/test_where_builder.sh"
+chmod +x "$TEST_DIR/runs/capture_sql_log.sh"
 
 # 记录测试开始
 echo "=== WHERE子句构建优化测试总结 ===" > $SUMMARY_FILE
@@ -33,7 +49,7 @@ echo "应用已运行，开始测试..." | tee -a $SUMMARY_FILE
 
 # 启动SQL日志捕获（后台运行）
 echo "启动SQL日志捕获..." | tee -a $SUMMARY_FILE
-$TEST_DIR/runs/capture_sql_log.sh &
+"$TEST_DIR/runs/capture_sql_log.sh" &
 SQL_LOG_PID=$!
 
 # 等待SQL日志捕获启动
@@ -41,7 +57,7 @@ sleep 2
 
 # 运行测试
 echo "运行WHERE子句构建测试..." | tee -a $SUMMARY_FILE
-$TEST_DIR/runs/test_where_builder.sh | tee -a $SUMMARY_FILE
+"$TEST_DIR/runs/test_where_builder.sh" | tee -a $SUMMARY_FILE
 
 # 停止SQL日志捕获
 echo "停止SQL日志捕获..." | tee -a $SUMMARY_FILE
@@ -51,8 +67,8 @@ kill $SQL_LOG_PID 2>/dev/null
 sleep 2
 
 # 查找最新的测试结果文件
-WHERE_RESULT=$(ls -t $RESULT_DIR/*where_builder_result.txt | head -1)
-SQL_LOG=$(ls -t $RESULT_DIR/*sql_log.txt | head -1)
+WHERE_RESULT=$(ls -t "$RESULT_DIR"/*where_builder_result.txt 2>/dev/null | head -1)
+SQL_LOG=$(ls -t "$RESULT_DIR"/*sql_log.txt 2>/dev/null | head -1)
 
 # 分析测试结果
 echo -e "\n分析测试结果..." | tee -a $SUMMARY_FILE

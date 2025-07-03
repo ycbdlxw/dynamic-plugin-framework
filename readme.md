@@ -127,6 +127,22 @@ curl -X POST 'http://localhost:8080/api/test/execute?scriptPath=src/main/resourc
 curl -X POST 'http://localhost:8080/api/test/execute?scriptPath=src/main/resources/test/test_file_pipeline.curl&resultDir=/tmp/test_results'
 ```
 
+### 测试脚本生成
+
+项目提供了测试脚本生成工具，可以快速生成测试文件和执行脚本：
+
+```bash
+# 进入测试目录
+cd src/main/resources/test
+
+# 生成测试脚本
+./generate_test_script.sh common api
+
+# 生成的文件:
+# - test_common_api.curl (测试用例文件)
+# - runs/run_common_api_test.sh (执行脚本)
+```
+
 ## 核心哲学与开发原则
 
 1. **数据驱动一切**: 业务逻辑、校验规则、API行为应优先通过配置表驱动
@@ -135,12 +151,38 @@ curl -X POST 'http://localhost:8080/api/test/execute?scriptPath=src/main/resourc
 4. **"三不三少"原则**:
    - **三不**: 不过度开发、不过度复杂、不破坏现有功能
    - **三少**: 少文件、少代码、少调用
+5. **测试驱动开发**: 所有功能优化、调整或新增都必须有相应的测试用例
+6. **文档同步更新**: 代码变更必须同步更新相关文档
 
-## 参考文档
+## 项目文档
 
-- [开发文档](docs/开发文档.md) - 详细架构设计和开发规范
-- [命令执行器插件文档](docs/command-executor-plugin.md) - CommandExecutor插件使用指南
-- [测试服务文档](docs/test-service.md) - 测试服务详细说明
+### 用户文档
+
+- [入门指南](docs/user/getting-started.md) - 系统使用入门指南
+- [测试服务使用指南](docs/user/test-service-usage.md) - 如何使用测试服务
+
+### API文档
+
+- [通用控制器接口](docs/api/common-controller.md) - CommonController API接口文档
+
+### 开发文档
+
+- [系统架构](docs/dev/architecture.md) - 系统架构设计文档
+- [开发指南](docs/dev/开发文档.md) - 详细开发规范和指南
+- [数据库驱动示例](docs/dev/db_driver_demo.md) - 数据库驱动示例
+- [操作日志](docs/dev/operation-log.md) - 操作日志设计
+- [调度中心设计](docs/dev/调度中心与业务逻辑完全分离.md) - 调度中心与业务逻辑分离设计
+
+### 插件文档
+
+- [命令执行器插件](docs/plugins/command-executor-plugin.md) - CommandExecutor插件使用指南
+- [测试服务插件](docs/plugins/test-service.md) - TestService插件详细说明
+
+### 规范文档
+
+- [测试规范](docs/测试规范.md) - 测试编写和执行规范
+- [测试规划](docs/test-plan.md) - 测试规划和脚本生成规范
+- [文档规范](docs/文档规范.md) - 文档编写和维护规范
 
 ## 许可证
 

@@ -34,9 +34,6 @@ public class CommonController {
                 return ApiResponse.failed("未授权的操作");
             }
 
-            // 添加审计字段
-            data.put("update_by", userId);
-
             // 简单检查ID是否存在，确定是创建还是更新操作
             Object id = data.get("id");
             Map<String, Object> result = new HashMap<>();
@@ -46,8 +43,6 @@ public class CommonController {
                 baseService.update(targetTable, data, id);
                 result.put("id", id);
             } else {
-                // 添加创建者信息
-                data.put("create_by", userId);
                 // 使用BaseService进行保存
                 long newId = baseService.save(targetTable, data);
                 result.put("id", newId);
@@ -84,6 +79,11 @@ public class CommonController {
             if (allParams.containsKey("pageSize")) {
                 pageSize = Integer.parseInt(allParams.get("pageSize").toString());
                 allParams.remove("pageSize");
+            }
+            // 过滤所有分页、排序、通用保留参数，避免进入WHERE
+            String[] reservedKeys = {"orderBy", "sortByAndType", "columns", "offset", "limit"};
+            for (String key : reservedKeys) {
+                allParams.remove(key);
             }
 
             // 使用BaseService查询列表

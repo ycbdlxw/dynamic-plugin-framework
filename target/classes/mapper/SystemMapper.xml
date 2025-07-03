@@ -42,21 +42,21 @@
 
     <!-- 获取表级属性 -->
     <select id="getAttributeData" resultType="map">
-        SELECT * FROM table_attribute WHERE dbtable = #{table}
+        SELECT * FROM table_attribute WHERE db_table = #{table}
     </select>
   
     <!-- 获取列级属性 -->
     <select id="getColumnAttributes" resultType="map">
-        SELECT * FROM column_attribute WHERE dbTableName = #{table}
+        SELECT * FROM column_attribute WHERE db_table_name = #{table}
         <if test="attributeType != null and attributeType != ''">
-            AND editType = #{attributeType}
+            AND edit_type = #{attributeType}
         </if>
-        ORDER BY OrderNo ASC
+        ORDER BY order_no ASC
     </select>
   
     <!-- 获取主键列名 -->
     <select id="getPriKeyColumn" resultType="string">
-        SELECT name FROM column_attribute WHERE dbTableName = #{table} AND IsPri = 1 LIMIT 1
+        SELECT column_name FROM column_attribute WHERE db_table_name = #{table} AND is_pri = 1 LIMIT 1
     </select>
     
     <!-- 获取校验规则 -->

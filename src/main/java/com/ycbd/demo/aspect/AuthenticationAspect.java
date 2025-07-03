@@ -1,8 +1,11 @@
 package com.ycbd.demo.aspect;
 
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
@@ -28,7 +31,6 @@ import com.ycbd.demo.utils.ApiResponse;
 import com.ycbd.demo.utils.ResultCode;
 
 import cn.hutool.core.map.MapUtil;
-import cn.hutool.jwt.JWT;
 import jakarta.annotation.PostConstruct;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -50,15 +52,16 @@ public class AuthenticationAspect {
     private final AntPathMatcher pathMatcher = new AntPathMatcher();
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    // 用于存储紧急情况下的默认白名单
-    private final String[] defaultWhiteListPatterns = {
+    // 白名单路径
+    private static final Set<String> WHITE_LIST = new HashSet<>(Arrays.asList(
         "/api/core/register",
         "/api/core/login",
-        "/h2-console/**",
+        "/h2-console",
         "/swagger-ui.html",
-        "/swagger-ui/**",
-        "/api-docs/**"
-    };
+        "/swagger-ui",
+        "/api-docs",
+        "/api/common/health"
+    ));
 
     @PostConstruct
     public void init() {
@@ -71,7 +74,7 @@ public class AuthenticationAspect {
      */
     private void ensureDefaultWhitelistExists() {
         try {
-            for (String pattern : defaultWhiteListPatterns) {
+            for (String pattern : WHITE_LIST) {
                 Map<String, Object> params = new HashMap<>();
                 params.put("type", "WHITELIST");
                 params.put("pattern", pattern);
@@ -118,16 +121,14 @@ public class AuthenticationAspect {
                 }
 
                 token = token.substring(7);
-                JWT jwt = jwtService.verifyAndDecode(token);
-
-                if (jwt == null) {
+                Map<String, Object> jwtPayload = jwtService.verifyAndDecode(token);
+                if (jwtPayload == null) {
                     response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
                     response.setContentType("application/json;charset=UTF-8");
                     response.getWriter().write(objectMapper.writeValueAsString(ApiResponse.of(ResultCode.UNAUTHORIZED, "Invalid or expired token")));
                     return null;
                 }
-
-                currentUser = jwt.getPayload().getClaimsJson();
+                currentUser = jwtPayload;
 
                 if (!currentUser.containsKey("userId") || !currentUser.containsKey("username")) {
                     logger.warn("Token缺少必要的用户信息字段");
@@ -187,7 +188,7 @@ public class AuthenticationAspect {
             logger.error("从数据库获取白名单失败，使用默认白名单", e);
 
             // 数据库查询失败时，使用默认白名单作为备用
-            for (String pattern : defaultWhiteListPatterns) {
+            for (String pattern : WHITE_LIST) {
                 if (pathMatcher.match(pattern, uri)) {
                     return true;
                 }

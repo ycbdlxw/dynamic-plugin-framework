@@ -75,14 +75,13 @@ public class JwtService {
      * @param token JWT令牌字符串
      * @return 解码后的JWT对象，验证失败时返回null
      */
-    public JWT verifyAndDecode(String token) {
+    public Map<String, Object> verifyAndDecode(String token) {
         try {
-            JWT jwt = JWTUtil.parseToken(token);
-            if (!jwt.setKey(appProperties.getJwt().getSecret().getBytes()).verify()) {
+            cn.hutool.jwt.JWT jwt = cn.hutool.jwt.JWT.of(token);
+            if (!jwt.setKey(appProperties.getJwt().getSecret().getBytes(java.nio.charset.StandardCharsets.UTF_8)).verify()) {
                 return null;
             }
-            JWTValidator.of(token).validateDate();
-            return jwt;
+            return jwt.getPayloads();
         } catch (Exception e) {
             logger.warn("Token验证失败: {}", e.getMessage());
             return null;

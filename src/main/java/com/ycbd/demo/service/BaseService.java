@@ -12,6 +12,10 @@ import org.springframework.transaction.annotation.Transactional;
 import com.ycbd.demo.mapper.SystemMapper;
 import com.ycbd.demo.utils.SqlWhereBuilder;
 import com.ycbd.demo.utils.Tools;
+import com.ycbd.demo.security.UserContext;
+import com.ycbd.demo.service.FilterRuleService;
+import com.ycbd.demo.service.DataPreprocessorService;
+import com.ycbd.demo.service.MetaService;
 
 import cn.hutool.core.map.MapUtil;
 import cn.hutool.core.util.StrUtil;
@@ -22,6 +26,15 @@ public class BaseService {
     @Autowired
     private SystemMapper systemMapper;
 
+    @Autowired
+    private FilterRuleService filterRuleService;
+
+    @Autowired
+    private DataPreprocessorService dataPreprocessorService;
+
+    @Autowired
+    private MetaService metaService;
+
     /**
      * 查询列表
      */
@@ -30,6 +43,8 @@ public class BaseService {
             pageSize = 10;
         }
 
+        // 先应用隐式过滤规则
+        filterRuleService.enhanceFilters(table, params);
         String whereStr = buildWhereClause(table, params);
 
         List<Map<String, Object>> raw = systemMapper.getItemsData(table, columns, joinString, whereStr, groupByString, sortByAndType, pageSize, pageIndex * pageSize);
@@ -55,7 +70,7 @@ public class BaseService {
      */
     public Map<String, Object> getTableConfig(String table) {
         Map<String, Object> params = new HashMap<>();
-        params.put("dbtable", table);
+        params.put("db_table", table);
         return getOne("table_attribute", params);
     }
 
@@ -68,17 +83,21 @@ public class BaseService {
         for (Map<String, Object> item : raw) {
             Map<String, Object> lower = Tools.toLowerCaseKeyMap(item);
             // 关键字段取值也转小写，方便后续比较
-            Object colName = lower.get("name");
+            Object colName = lower.get("column_name");
             if (colName != null) {
-                lower.put("name", colName.toString().toLowerCase());
+                lower.put("column_name", colName.toString().toLowerCase());
             }
-            Object qType = lower.get("querytype");
+            Object qType = lower.get("query_type");
             if (qType != null) {
-                lower.put("querytype", qType.toString().toLowerCase());
+                lower.put("query_type", qType.toString().toLowerCase());
             }
-            Object cType = lower.get("columntype");
+            Object cType = lower.get("column_type");
             if (cType != null) {
-                lower.put("columntype", cType.toString().toLowerCase());
+                lower.put("column_type", cType.toString().toLowerCase());
+            }
+            Object isPri = lower.get("is_pri");
+            if (isPri != null) {
+                lower.put("is_pri", isPri.toString().toLowerCase());
             }
             normalized.add(lower);
         }
@@ -105,6 +124,8 @@ public class BaseService {
      */
     @Transactional
     public long save(String table, Map<String, Object> data) {
+        // 数据预处理（默认值 / 审计字段 / 必填校验）
+        dataPreprocessorService.preprocessForSave(table, data);
         // 预处理数据，确保所有值都是MyBatis可以处理的类型
         Map<String, Object> processedData = Tools.processMapForMyBatis(data);
         systemMapper.insertData(table, processedData);
@@ -120,13 +141,15 @@ public class BaseService {
             return;
         }
 
-        // 预处理数据，确保所有值都是MyBatis可以处理的类型
+        // 由 DataPreprocessorService 处理批量逻辑
+        saveData = dataPreprocessorService.preprocessBatchSave(table, saveData);
+
+        // 预处理数据（MyBatis 类型兼容）
         List<Map<String, Object>> processedData = Tools.processMapListForMyBatis(saveData);
 
-        // 构建列名
+        // 构建列名（使用第一条记录的顺序）
         StringBuilder columnsBuilder = new StringBuilder();
-        Map<String, Object> firstItem = processedData.get(0);
-        for (String key : firstItem.keySet()) {
+        for (String key : processedData.get(0).keySet()) {
             if (columnsBuilder.length() > 0) {
                 columnsBuilder.append(",");
             }
@@ -146,6 +169,9 @@ public class BaseService {
             primaryKey = "id";
         }
 
+        // 数据预处理
+        dataPreprocessorService.preprocessForUpdate(table, data);
+
         // 预处理数据，确保所有值都是MyBatis可以处理的类型
         Map<String, Object> processedData = Tools.processMapForMyBatis(data);
         systemMapper.updateData(table, processedData, primaryKey, id);
@@ -164,6 +190,9 @@ public class BaseService {
         if (primaryKey == null || primaryKey.isEmpty()) {
             primaryKey = "id";
         }
+
+        // 数据预处理
+        dataPreprocessorService.preprocessForUpdate(table, data);
 
         // 预处理数据，确保所有值都是MyBatis可以处理的类型
         Map<String, Object> processedData = Tools.processMapForMyBatis(data);
@@ -214,6 +243,13 @@ public class BaseService {
         if (params == null || params.isEmpty()) {
             return "";
         }
+        // 跳过分页/排序保留参数
+        params.remove("pageindex");
+        params.remove("pagesize");
+        params.remove("sortbyandtype");
+        params.remove("offset");
+        params.remove("limit");
+        params.remove("columns");
 
         // Step 1: 获取并转换字段属性
         List<Map<String, Object>> columnAttributes = getColumnAttributes(table, null);
@@ -261,7 +297,7 @@ public class BaseService {
 
         // Step 3: 构建属性列表
         for (Map<String, Object> attr : columnAttributes) {
-            String propName = MapUtil.getStr(attr, "name");
+            String propName = MapUtil.getStr(attr, "column_name");
             if (StrUtil.isBlank(propName) || !processedParams.containsKey(propName)) {
                 continue;
             }
@@ -272,12 +308,12 @@ public class BaseService {
             // 应用查询类型覆盖
             String queryType = queryTypeOverrides.containsKey(propName)
                     ? queryTypeOverrides.get(propName)
-                    : MapUtil.getStr(attr, "querytype", "eq").toLowerCase();
+                    : MapUtil.getStr(attr, "query_type", MapUtil.getStr(attr, "querytype", "eq")).toLowerCase();
             convertedAttr.put("queryType", queryType);
 
             // 确定列类型
-            String showType = MapUtil.getStr(attr, "showtype");
-            boolean isPri = MapUtil.getBool(attr, "ispri", false);
+            String showType = MapUtil.getStr(attr, "show_type");
+            boolean isPri = MapUtil.getBool(attr, "is_pri", false);
             int columnType = 1; // 1=字符串, 2=数值, 3=布尔
             if ("number".equalsIgnoreCase(showType)) {
                 columnType = 2;
