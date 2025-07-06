@@ -1,0 +1,9 @@
+# 基本功能测试脚本
+# 健康检查
+curl -X GET "http://localhost:8081/api/common/health" -H "Content-Type: application/json"
+
+# 登录获取token
+curl -X POST 'http://localhost:8081/api/core/login' -H 'Content-Type: application/json' -d '{"username":"admin","password":"ycbd1234"}'
+
+# 执行命令（使用测试控制器）
+curl -X POST 'http://localhost:8081/api/test/command' -H 'Content-Type: application/json' -H 'Authorization: Bearer {{TOKEN}}' -d '{"command":"echo 测试成功"}' 

@@ -11,8 +11,6 @@ import org.springframework.stereotype.Service;
 import com.ycbd.demo.config.AppProperties;
 
 import cn.hutool.jwt.JWT;
-import cn.hutool.jwt.JWTUtil;
-import cn.hutool.jwt.JWTValidator;
 
 @Service
 public class JwtService {
@@ -38,6 +36,8 @@ public class JwtService {
         java.util.Date expireTime = new java.util.Date(expireMillis);
 
         Map<String, Boolean> enabledFieldMap = tokenFieldConfigService.getEnabledTokenFields();
+        logger.info("启用的Token字段配置: {}", enabledFieldMap);
+
         Map<String, Object> payload = new HashMap<>();
         for (String tokenField : enabledFieldMap.keySet()) {
             // tokenField 可能与userData字段名不同（如userId=>id），先直接取
@@ -59,7 +59,8 @@ public class JwtService {
             payload.put("username", userData.get("username"));
         }
 
-        logger.debug("生成Token，包含字段: {}", payload.keySet());
+        logger.info("生成Token，原始用户数据: {}", userData);
+        logger.info("生成Token，包含字段: {}", payload);
 
         return JWT.create()
                 .addPayloads(payload)
@@ -77,11 +78,19 @@ public class JwtService {
      */
     public Map<String, Object> verifyAndDecode(String token) {
         try {
+            logger.info("开始验证Token: {}", token.substring(0, Math.min(20, token.length())) + "...");
             cn.hutool.jwt.JWT jwt = cn.hutool.jwt.JWT.of(token);
-            if (!jwt.setKey(appProperties.getJwt().getSecret().getBytes(java.nio.charset.StandardCharsets.UTF_8)).verify()) {
+            boolean verified = jwt.setKey(appProperties.getJwt().getSecret().getBytes(java.nio.charset.StandardCharsets.UTF_8)).verify();
+            logger.info("Token验证结果: {}", verified);
+
+            if (!verified) {
+                logger.warn("Token签名验证失败");
                 return null;
             }
-            return jwt.getPayloads();
+
+            Map<String, Object> payload = jwt.getPayloads();
+            logger.info("Token解析成功，包含字段: {}", payload.keySet());
+            return payload;
         } catch (Exception e) {
             logger.warn("Token验证失败: {}", e.getMessage());
             return null;

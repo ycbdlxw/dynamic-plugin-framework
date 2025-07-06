@@ -78,30 +78,36 @@ public class BaseService {
      * 获取字段属性
      */
     public List<Map<String, Object>> getColumnAttributes(String table, String attributeType) {
-        List<Map<String, Object>> raw = systemMapper.getColumnAttributes(table, attributeType);
-        List<Map<String, Object>> normalized = new ArrayList<>(raw.size());
-        for (Map<String, Object> item : raw) {
-            Map<String, Object> lower = Tools.toLowerCaseKeyMap(item);
-            // 关键字段取值也转小写，方便后续比较
-            Object colName = lower.get("column_name");
-            if (colName != null) {
-                lower.put("column_name", colName.toString().toLowerCase());
+        try {
+            List<Map<String, Object>> raw = systemMapper.getColumnAttributes(table, attributeType);
+            List<Map<String, Object>> normalized = new ArrayList<>(raw.size());
+            for (Map<String, Object> item : raw) {
+                Map<String, Object> lower = Tools.toLowerCaseKeyMap(item);
+                // 关键字段取值也转小写，方便后续比较
+                Object colName = lower.get("column_name");
+                if (colName != null) {
+                    lower.put("column_name", colName.toString().toLowerCase());
+                }
+                Object qType = lower.get("query_type");
+                if (qType != null) {
+                    lower.put("query_type", qType.toString().toLowerCase());
+                }
+                Object cType = lower.get("column_type");
+                if (cType != null) {
+                    lower.put("column_type", cType.toString().toLowerCase());
+                }
+                Object isPri = lower.get("is_pri");
+                if (isPri != null) {
+                    lower.put("is_pri", isPri.toString().toLowerCase());
+                }
+                normalized.add(lower);
             }
-            Object qType = lower.get("query_type");
-            if (qType != null) {
-                lower.put("query_type", qType.toString().toLowerCase());
-            }
-            Object cType = lower.get("column_type");
-            if (cType != null) {
-                lower.put("column_type", cType.toString().toLowerCase());
-            }
-            Object isPri = lower.get("is_pri");
-            if (isPri != null) {
-                lower.put("is_pri", isPri.toString().toLowerCase());
-            }
-            normalized.add(lower);
+            return normalized;
+        } catch (Exception ex) {
+            // 捕获异常并打印警告，但不阻止业务流程
+            org.slf4j.LoggerFactory.getLogger(BaseService.class).warn("获取列属性失败，返回空列表以继续流程", ex);
+            return java.util.Collections.emptyList();
         }
-        return normalized;
     }
 
     /**
@@ -243,13 +249,17 @@ public class BaseService {
         if (params == null || params.isEmpty()) {
             return "";
         }
+        
+        // 创建params的可变副本，避免修改不可变Map导致UnsupportedOperationException
+        Map<String, Object> mutableParams = new HashMap<>(params);
+        
         // 跳过分页/排序保留参数
-        params.remove("pageindex");
-        params.remove("pagesize");
-        params.remove("sortbyandtype");
-        params.remove("offset");
-        params.remove("limit");
-        params.remove("columns");
+        mutableParams.remove("pageindex");
+        mutableParams.remove("pagesize");
+        mutableParams.remove("sortbyandtype");
+        mutableParams.remove("offset");
+        mutableParams.remove("limit");
+        mutableParams.remove("columns");
 
         // Step 1: 获取并转换字段属性
         List<Map<String, Object>> columnAttributes = getColumnAttributes(table, null);
@@ -259,7 +269,7 @@ public class BaseService {
         // Step 2: 处理参数，支持后缀 _like/_in/_between/_range
         Map<String, Object> processedParams = new HashMap<>();
 
-        for (Map.Entry<String, Object> entry : params.entrySet()) {
+        for (Map.Entry<String, Object> entry : mutableParams.entrySet()) {
             String originalKey = entry.getKey();
             Object valueObj = entry.getValue();
             if (valueObj == null || "".equals(valueObj)) {

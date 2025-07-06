@@ -5,6 +5,16 @@
 # 日期：$(date +%Y-%m-%d)
 
 # 设置变量
+API_BASE="http://localhost:8080"
+SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+CURL_FILE="${SCRIPT_DIR}/test_where_builder.curl"
+RESULT_DIR="${SCRIPT_DIR}/test_results"
+mkdir -p "${RESULT_DIR}"
+echo "=== 执行测试用例: ${CURL_FILE} ==="
+curl -s -X POST "${API_BASE}/api/test/execute?scriptPath=${CURL_FILE}&resultDir=${RESULT_DIR}&useCurrentDir=true"
+echo "=== 用例执行完成，结果请查看: ${RESULT_DIR} ==="
+
+# 设置变量
 HOST="http://localhost:8080"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 RESULT_FILE="src/main/resources/test/test_results/${TIMESTAMP}_where_builder_result.txt"

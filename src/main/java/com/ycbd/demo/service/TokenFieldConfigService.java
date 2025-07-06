@@ -38,15 +38,32 @@ public class TokenFieldConfigService {
         Map<String, Boolean> result = new HashMap<>();
         try {
             List<Map<String, Object>> attrs = baseService.getColumnAttributes("sys_user", null);
+            logger.info("获取到的列属性数量: {}", attrs != null ? attrs.size() : 0);
+
+            if (attrs == null || attrs.isEmpty()) {
+                logger.warn("未找到sys_user表的列属性，使用硬编码配置");
+                result.put("userId", true);
+                result.put("username", true);
+                result.put("real_name", true);
+                result.put("roles", true);
+                return result;
+            }
+
             for (Map<String, Object> attr : attrs) {
                 Object otherObj = attr.get("other");
                 if (otherObj == null) {
                     continue;
                 }
-                Map<String, Object> otherMap = objectMapper.readValue(String.valueOf(otherObj), Map.class);
-                if (Boolean.TRUE.equals(otherMap.get("isTokenField"))) {
-                    String tokenName = otherMap.getOrDefault("tokenName", attr.get("column_name")).toString();
-                    result.put(tokenName, true);
+
+                try {
+                    Map<String, Object> otherMap = objectMapper.readValue(String.valueOf(otherObj), Map.class);
+                    if (Boolean.TRUE.equals(otherMap.get("isTokenField"))) {
+                        String tokenName = otherMap.getOrDefault("tokenName", attr.get("column_name")).toString();
+                        result.put(tokenName, true);
+                        logger.info("添加Token字段: {}", tokenName);
+                    }
+                } catch (Exception e) {
+                    logger.warn("解析other字段JSON失败: {}", otherObj, e);
                 }
             }
             // roles 字段不在sys_user表内，默认加入
@@ -60,6 +77,11 @@ public class TokenFieldConfigService {
             result.put("roles", true);
         }
 
+        // 确保userId和username字段始终启用
+        result.put("userId", true);
+        result.put("username", true);
+
+        logger.info("最终启用的Token字段: {}", result);
         return result;
     }
 

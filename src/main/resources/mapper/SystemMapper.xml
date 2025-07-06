@@ -69,17 +69,21 @@
     <!-- 通用插入，并获取自增ID -->
     <insert id="insertData" useGeneratedKeys="true" keyProperty="data.id" keyColumn="id">
         INSERT INTO ${table}
-        (
-        <foreach collection="data.keys" item="key" separator=",">
-            `${key}`
-        </foreach>
-        )
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <foreach collection="data.keys" item="key">
+                <if test="key != 'id'">
+                    `${key}`,
+                </if>
+            </foreach>
+        </trim>
         VALUES
-        (
-        <foreach collection="data.values" item="value" separator=",">
-            #{value}
-        </foreach>
-        )
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <foreach collection="data.keys" item="key">
+                <if test="key != 'id'">
+                    #{data[${key}]},
+                </if>
+            </foreach>
+        </trim>
     </insert>
   
     <!-- 通用批量插入 -->

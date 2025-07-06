@@ -33,6 +33,10 @@ public class DataPreprocessorService {
      * 单条保存前的预处理
      */
     public void preprocessForSave(String table, Map<String, Object> data) {
+        // 插入时移除ID字段，让数据库自动生成
+        if (data.containsKey("id") && (data.get("id") == null || data.get("id").toString().isEmpty())) {
+            data.remove("id");
+        }
         preprocessInternal(table, data, false);
     }
 
@@ -53,6 +57,10 @@ public class DataPreprocessorService {
 
         // 先逐条处理默认值 / 审计字段 / 校验
         for (Map<String, Object> item : list) {
+            // 插入时移除ID字段，让数据库自动生成
+            if (item.containsKey("id") && (item.get("id") == null || item.get("id").toString().isEmpty())) {
+                item.remove("id");
+            }
             preprocessInternal(table, item, false);
         }
 
@@ -80,7 +88,6 @@ public class DataPreprocessorService {
     }
 
     // -------------------- 内部实现 ---------------------
-
     private void preprocessInternal(String table, Map<String, Object> data, boolean isUpdate) {
         List<Map<String, Object>> attrs = metaService.getColumnAttrs(table);
         Map<String, Map<String, Object>> attrMap = attrs.stream()
@@ -88,14 +95,14 @@ public class DataPreprocessorService {
 
         // 1. 自动填充用户上下文字段（edit_flag=1的字段）
         autoFillUserContextFields(attrs, data);
-        
+
         // 2. 默认值 & 必填校验
         processDefaultValuesAndValidation(attrs, data);
 
         // 3. 审计字段
         addAuditFields(attrMap, data, isUpdate);
     }
-    
+
     /**
      * 自动从用户上下文中填充edit_flag=1的字段
      */
@@ -104,21 +111,21 @@ public class DataPreprocessorService {
         if (userContext == null || userContext.isEmpty()) {
             return;
         }
-        
+
         for (Map<String, Object> attr : attrs) {
             String columnName = MapUtil.getStr(attr, "column_name");
             Integer editFlag = MapUtil.getInt(attr, "edit_flag", 0);
-            
+
             // 只处理edit_flag=1的字段
             if (editFlag != 1) {
                 continue;
             }
-            
+
             // 如果数据中已有该字段值，不覆盖
             if (data.containsKey(columnName) && data.get(columnName) != null) {
                 continue;
             }
-            
+
             // 尝试从用户上下文中获取同名字段
             if (userContext.containsKey(columnName)) {
                 Object userValue = userContext.get(columnName);
@@ -129,7 +136,7 @@ public class DataPreprocessorService {
             }
         }
     }
-    
+
     /**
      * 处理默认值和必填校验
      */
@@ -138,6 +145,14 @@ public class DataPreprocessorService {
             String col = MapUtil.getStr(attr, "column_name");
             boolean required = MapUtil.getBool(attr, "is_required", false);
             Object val = data.get(col);
+            String fieldType = MapUtil.getStr(attr, "field_type", "").toLowerCase();
+
+            // 新增：数值型字段空字符串转 null
+            if (("int".equals(fieldType) || "bigint".equals(fieldType) || "float".equals(fieldType) || "double".equals(fieldType) || "tinyint".equals(fieldType))
+                    && (val instanceof String) && StrUtil.isBlank((String) val)) {
+                data.put(col, null);
+                val = null;
+            }
 
             if (val == null || (val instanceof String && StrUtil.isBlank((String) val))) {
                 // 无值，先补默认
@@ -168,7 +183,7 @@ public class DataPreprocessorService {
 
         Integer userId = UserContext.getUserId();
         Timestamp now = new Timestamp(System.currentTimeMillis());
-        
+
         // 标准审计字段映射 - 使用Object[]数组存储，避免类型转换问题
         Object[][] auditFields = {
             // 字段名, 是否仅插入时填充, 用户上下文字段, 默认值
@@ -185,24 +200,24 @@ public class DataPreprocessorService {
             {"org_id", true, "orgId", UserContext.getOrgId()},
             {"tenant_id", true, "tenantId", userContext.get("tenantId")}
         };
-        
+
         // 遍历所有可能的审计字段
         for (Object[] fieldInfo : auditFields) {
             String fieldName = (String) fieldInfo[0];
             boolean isInsertOnly = (Boolean) fieldInfo[1];
             String contextField = (String) fieldInfo[2];
             Object defaultValue = fieldInfo[3];
-            
+
             // 跳过不存在的字段
             if (!attrMap.containsKey(fieldName)) {
                 continue;
             }
-            
+
             // 更新操作且字段仅在插入时填充，则跳过
             if (isUpdate && isInsertOnly) {
                 continue;
             }
-            
+
             // 从用户上下文获取值，如果没有则使用默认值
             Object value = null;
             if (contextField != null && userContext.containsKey(contextField)) {
@@ -210,7 +225,7 @@ public class DataPreprocessorService {
             } else {
                 value = defaultValue;
             }
-            
+
             // 插入操作使用putIfAbsent，更新操作使用put
             if (value != null) {
                 if (isUpdate) {
@@ -250,7 +265,7 @@ public class DataPreprocessorService {
             if ("orgId()".equalsIgnoreCase(dvStr)) {
                 return UserContext.getOrgId();
             }
-            
+
             // 如果是数字类型的字符串，转换为Integer
             if (dvStr.matches("^\\d+$")) {
                 try {
@@ -259,10 +274,10 @@ public class DataPreprocessorService {
                     return dvStr;
                 }
             }
-            
+
             return dv;
         }
-        
+
         // type 推断 (1=string default, 2=number, 3=bool/date?)
         int columnType = MapUtil.getInt(attr, "column_type", 1);
         switch (columnType) {
@@ -273,4 +288,4 @@ public class DataPreprocessorService {
                 return "";
         }
     }
-} 
+}

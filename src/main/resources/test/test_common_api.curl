@@ -2,25 +2,19 @@
 # 使用方法: sh run_common_api_test.sh
 
 # 1. 健康检查测试
-echo "执行健康检查测试..."
-curl -X GET "http://localhost:8080/api/common/health" -H "Content-Type: application/json" -w "\n\nStatus: %{http_code}\nTime: %{time_total}s\n\n"
+curl -X GET "http://localhost:8081/api/common/health" -H "Content-Type: application/json" -w "\n\nStatus: %{http_code}\nTime: %{time_total}s\n\n"
 
 # 2. 获取列表测试 (需要认证)
-echo "执行获取列表测试..."
-curl -X GET "http://localhost:8080/api/common/list?targetTable=sys_user&pageIndex=0&pageSize=10" -H "Content-Type: application/json" -H "Authorization: Bearer YOUR_TOKEN_HERE" -w "\n\nStatus: %{http_code}\nTime: %{time_total}s\n\n"
+curl -X GET "http://localhost:8081/api/common/list?targetTable=sys_user&pageIndex=0&pageSize=10" -H "Content-Type: application/json" -H "Authorization: Bearer {{TOKEN}}" -w "\n\nStatus: %{http_code}\nTime: %{time_total}s\n\n"
 
 # 3. 保存数据测试 (需要认证)
-echo "执行保存数据测试..."
-curl -X POST "http://localhost:8080/api/common/save?targetTable=sys_user" -H "Content-Type: application/json" -H "Authorization: Bearer YOUR_TOKEN_HERE" -d '{"username": "testuser","password": "password123","real_name": "Test User","email": "test@example.com","status": 1}' -w "\n\nStatus: %{http_code}\nTime: %{time_total}s\n\n"
+curl -X POST "http://localhost:8081/api/common/save?targetTable=sys_user" -H "Content-Type: application/json" -H "Authorization: Bearer {{TOKEN}}" -d '{"username": "testuser","password": "password123","real_name": "Test User","email": "test@example.com","status": 1}' -w "\n\nStatus: %{http_code}\nTime: %{time_total}s\n\n"
 
 # 4. 更新数据测试 (需要认证)
-echo "执行更新数据测试..."
-curl -X POST "http://localhost:8080/api/common/save?targetTable=sys_user" -H "Content-Type: application/json" -H "Authorization: Bearer YOUR_TOKEN_HERE" -d '{"id": 2,"email": "updated@example.com","status": 0}' -w "\n\nStatus: %{http_code}\nTime: %{time_total}s\n\n"
+curl -X POST "http://localhost:8081/api/common/save?targetTable=sys_user" -H "Content-Type: application/json" -H "Authorization: Bearer {{TOKEN}}" -d '{"id": 2,"email": "updated@example.com","status": 0}' -w "\n\nStatus: %{http_code}\nTime: %{time_total}s\n\n"
 
 # 5. 删除数据测试 (需要认证)
-echo "执行删除数据测试..."
-curl -X POST "http://localhost:8080/api/common/delete?targetTable=sys_user&id=2" -H "Content-Type: application/json" -H "Authorization: Bearer YOUR_TOKEN_HERE" -w "\n\nStatus: %{http_code}\nTime: %{time_total}s\n\n"
+curl -X POST "http://localhost:8081/api/common/delete?targetTable=sys_user&id=2" -H "Content-Type: application/json" -H "Authorization: Bearer {{TOKEN}}" -w "\n\nStatus: %{http_code}\nTime: %{time_total}s\n\n"
 
 # 6. 未授权测试 (无token)
-echo "执行未授权测试..."
-curl -X GET "http://localhost:8080/api/common/list?targetTable=sys_user" -H "Content-Type: application/json" -w "\n\nStatus: %{http_code}\nTime: %{time_total}s\n\n" 
+curl -X GET "http://localhost:8081/api/common/list?targetTable=sys_user" -H "Content-Type: application/json" -w "\n\nStatus: %{http_code}\nTime: %{time_total}s\n\n" 

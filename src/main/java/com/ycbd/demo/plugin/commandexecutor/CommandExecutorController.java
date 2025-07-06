@@ -2,6 +2,8 @@ package com.ycbd.demo.plugin.commandexecutor;
 
 import java.util.Map;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -16,10 +18,19 @@ import com.ycbd.demo.utils.ApiResponse;
 @RequestMapping("/api/command")
 public class CommandExecutorController {
 
+    private static final Logger logger = LoggerFactory.getLogger(CommandExecutorController.class);
+
     private CommandExecutionService commandService;
+
+    public CommandExecutorController() {
+        // 默认构造函数，确保实例化时不为空
+        this.commandService = new CommandExecutionService();
+        logger.info("CommandExecutorController已初始化，commandService已创建");
+    }
 
     public void setCommandService(CommandExecutionService commandService) {
         this.commandService = commandService;
+        logger.info("CommandExecutorController的commandService已设置");
     }
 
     /**
@@ -35,7 +46,17 @@ public class CommandExecutorController {
             return ApiResponse.failed("命令不能为空");
         }
 
-        Map<String, Object> result = commandService.executeCommand(command);
-        return ApiResponse.success(result);
+        if (commandService == null) {
+            logger.error("commandService为空，尝试重新初始化");
+            commandService = new CommandExecutionService();
+        }
+
+        try {
+            Map<String, Object> result = commandService.executeCommand(command);
+            return ApiResponse.success(result);
+        } catch (Exception e) {
+            logger.error("执行命令失败", e);
+            return ApiResponse.failed("执行命令失败: " + e.getMessage());
+        }
     }
 }

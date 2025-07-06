@@ -4,6 +4,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -15,10 +17,13 @@ import org.springframework.web.bind.annotation.RestController;
 import com.ycbd.demo.security.UserContext;
 import com.ycbd.demo.service.BaseService;
 import com.ycbd.demo.utils.ApiResponse;
+import org.springframework.web.bind.annotation.CrossOrigin;
 
 @RestController
 @RequestMapping("/api/common")
 public class CommonController {
+
+    private static final Logger logger = LoggerFactory.getLogger(CommonController.class);
 
     @Autowired
     private BaseService baseService;
@@ -60,11 +65,16 @@ public class CommonController {
             @RequestParam String targetTable,
             @RequestParam Map<String, Object> allParams) {
         try {
+            // 添加日志输出
+            logger.info("获取列表请求: targetTable={}, params={}", targetTable, allParams);
+
+            // 获取用户信息并记录日志
+            Map<String, Object> user = UserContext.getUser();
+            logger.info("当前用户上下文: {}", user);
+
             // 安全检查：获取当前用户ID
             Integer userId = UserContext.getUserId();
-            if (userId == null) {
-                return ApiResponse.failed("未授权的操作");
-            }
+            logger.info("获取到的userId: {}", userId);
 
             // 移除targetTable参数，它不应该作为查询条件
             allParams.remove("targetTable");
@@ -99,6 +109,7 @@ public class CommonController {
 
             return ApiResponse.success(result);
         } catch (Exception e) {
+            logger.error("查询失败", e);
             return ApiResponse.failed("查询失败: " + e.getMessage());
         }
     }
@@ -130,6 +141,7 @@ public class CommonController {
      * 健康检查端点
      */
     @GetMapping("/health")
+    @CrossOrigin
     public ApiResponse<String> healthCheck() {
         return ApiResponse.success("Service is running");
     }

@@ -49,7 +49,7 @@ java -jar $JAR_FILE --spring.config.location=file:$TEST_CONFIG > $LOG_FILE 2>&1 
 # 等待应用启动
 echo "等待应用启动..."
 for i in {1..30}; do
-  if curl -s http://localhost:8080/api/health > /dev/null; then
+  if curl -s http://localhost:8080/api/common/health > /dev/null; then
     echo "应用已成功启动！"
     echo "测试环境就绪，可以运行测试脚本: ./src/main/resources/test/runs/run_where_builder_test.sh"
     exit 0

@@ -18,7 +18,7 @@ echo "开始时间: $(date)" >> $LOG_FILE
 echo "=================" >> $LOG_FILE
 
 # 检查应用是否正在运行
-if ! curl -s http://localhost:8080/api/health > /dev/null; then
+if ! curl -s http://localhost:8080/api/common/health > /dev/null; then
   echo "应用未运行，无法捕获SQL日志" | tee -a $LOG_FILE
   exit 1
 fi

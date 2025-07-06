@@ -3,12 +3,11 @@ package com.ycbd.demo.plugin.commandexecutor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.support.BeanDefinitionRegistry;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationContextAware;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.stereotype.Component;
-import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
 
 import com.ycbd.demo.plugin.IPlugin;
 
@@ -24,7 +23,8 @@ public class CommandExecutorPlugin implements IPlugin, ApplicationContextAware {
     private ApplicationContext applicationContext;
 
     private CommandExecutorController controller;
-    private CommandExecutionService service = new CommandExecutionService();
+    private CommandExecutionService commandService;
+    private boolean isInitialized = false;
 
     @Override
     public void setApplicationContext(ApplicationContext applicationContext) {
@@ -38,26 +38,39 @@ public class CommandExecutorPlugin implements IPlugin, ApplicationContextAware {
 
     @Override
     public void initialize() {
+        if (isInitialized) {
+            logger.info("命令执行器插件已初始化，跳过");
+            return;
+        }
+
         logger.info("初始化命令执行器插件");
 
-        ConfigurableApplicationContext configurableContext = (ConfigurableApplicationContext) applicationContext;
-        BeanDefinitionRegistry registry = (BeanDefinitionRegistry) configurableContext.getBeanFactory();
-
         // 创建服务和控制器
+        commandService = new CommandExecutionService();
         controller = new CommandExecutorController();
-        controller.setCommandService(service);
-
-        // 注册Bean
-        configurableContext.getBeanFactory().registerSingleton("commandExecutionService", service);
-        configurableContext.getBeanFactory().registerSingleton("commandExecutorController", controller);
-
-        // 刷新映射
-        RequestMappingHandlerMapping requestMappingHandlerMapping = applicationContext.getBean(RequestMappingHandlerMapping.class);
-        requestMappingHandlerMapping.getHandlerMethods().forEach((key, value)
-                -> logger.debug("已映射: {}", key));
+        controller.setCommandService(commandService);
 
         try {
-            // 使用service来执行命令
+            ConfigurableApplicationContext configurableContext = (ConfigurableApplicationContext) applicationContext;
+
+            // 注册Bean
+            if (!configurableContext.getBeanFactory().containsSingleton("commandExecutionService")) {
+                configurableContext.getBeanFactory().registerSingleton("commandExecutionService", commandService);
+                logger.info("注册commandExecutionService成功");
+            }
+
+            if (!configurableContext.getBeanFactory().containsSingleton("commandExecutorController")) {
+                configurableContext.getBeanFactory().registerSingleton("commandExecutorController", controller);
+                logger.info("注册commandExecutorController成功");
+
+                // 注意：Spring Boot会自动扫描并注册标有@RestController的类
+                // 由于我们是动态注册的Bean，可能需要手动触发映射更新
+                // 这里不再尝试手动更新映射，而是依赖Spring的自动扫描机制
+                logger.info("控制器已注册，请求路径: {}",
+                        controller.getClass().getAnnotation(RequestMapping.class).value()[0]);
+            }
+
+            isInitialized = true;
             logger.info("命令执行器准备就绪");
         } catch (Exception e) {
             logger.error("初始化命令执行器时出错", e);
@@ -69,12 +82,27 @@ public class CommandExecutorPlugin implements IPlugin, ApplicationContextAware {
     @Override
     public void shutdown() {
         logger.info("关闭命令执行器插件");
-        // 清理资源
+        isInitialized = false;
+    }
+
+    public CommandExecutionService getCommandService() {
+        if (commandService == null) {
+            commandService = new CommandExecutionService();
+        }
+        return commandService;
+    }
+
+    public CommandExecutorController getController() {
+        return controller;
     }
 
     // 直接提供一个执行命令的方法，让控制器调用
     public Object executeCommand(String command) {
         logger.info("执行命令: {}", command);
-        return service.executeCommand(command);
+        if (commandService == null) {
+            logger.error("命令服务为空，重新初始化");
+            commandService = new CommandExecutionService();
+        }
+        return commandService.executeCommand(command);
     }
 }

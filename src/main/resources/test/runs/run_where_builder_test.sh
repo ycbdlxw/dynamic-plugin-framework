@@ -6,7 +6,7 @@
 
 # 设置变量
 # 脚本当前所在目录
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 
 # 计算路径
 # TEST_DIR 是脚本所在目录的上一级 (即 test 目录)
@@ -23,7 +23,7 @@ if [ ! -d "$TEST_DIR/runs" ]; then
 fi
 
 # 结果目录和汇总文件
-RESULT_DIR="$TEST_DIR/test_results"
+RESULT_DIR="$SCRIPT_DIR/test_results"
 SUMMARY_FILE="$RESULT_DIR/${TIMESTAMP}_test_summary.txt"
 
 # 创建结果目录
@@ -40,7 +40,7 @@ echo "================================" >> $SUMMARY_FILE
 
 # 检查应用是否运行
 echo "检查应用是否运行..."
-if ! curl -s http://localhost:8080/api/health > /dev/null; then
+if ! curl -s http://localhost:8080/api/common/health > /dev/null; then
   echo "应用未运行，请先启动应用" | tee -a $SUMMARY_FILE
   exit 1
 fi
@@ -57,7 +57,11 @@ sleep 2
 
 # 运行测试
 echo "运行WHERE子句构建测试..." | tee -a $SUMMARY_FILE
-"$TEST_DIR/runs/test_where_builder.sh" | tee -a $SUMMARY_FILE
+API_BASE="http://localhost:8080"
+CURL_FILE="${SCRIPT_DIR}/test_where_builder.curl"
+echo "=== 执行测试用例: ${CURL_FILE} ==="
+curl -s -X POST "${API_BASE}/api/test/execute?scriptPath=${CURL_FILE}&resultDir=${RESULT_DIR}&useCurrentDir=true"
+echo "=== 用例执行完成，结果请查看: ${RESULT_DIR} ==="
 
 # 停止SQL日志捕获
 echo "停止SQL日志捕获..." | tee -a $SUMMARY_FILE

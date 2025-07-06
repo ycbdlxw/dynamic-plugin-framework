@@ -37,4 +37,22 @@ INSERT INTO security_config (type, pattern, is_active) VALUES
 
 -- 命令执行器插件配置
 INSERT INTO plugin_config (plugin_name, class_name, description, is_active) VALUES
-('CommandExecutor', 'com.ycbd.demo.plugin.commandexecutor.CommandExecutorPlugin', '跨平台命令行执行插件', TRUE); 
+('CommandExecutor', 'com.ycbd.demo.plugin.commandexecutor.CommandExecutorPlugin', '跨平台命令行执行插件', TRUE);
+
+-- 添加 system_log 表的表属性配置
+INSERT INTO table_attribute (db_table, table_name, main_key, sort, module, group_by, is_loading, is_all_select, is_row_operation_flag, is_operation_flag, table_procedure, sub_tables, table_key, parameter_type, alias_name, page_title, role_flag, join_str, defin_columns) VALUES
+('system_log', '系统日志', 'id', 'created_at DESC', 'system', NULL, 0, 0, 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, 0, NULL, NULL);
+
+-- 添加 system_log 表的字段属性配置
+INSERT INTO column_attribute (db_table_name, column_name, page_name, is_show_in_list, search_flag, edit_flag, is_required, order_no) VALUES
+('system_log', 'id', 'ID', FALSE, FALSE, FALSE, FALSE, 1),
+('system_log', 'user_id', '用户ID', TRUE, TRUE, FALSE, FALSE, 2),
+('system_log', 'username', '用户名', TRUE, TRUE, FALSE, FALSE, 3),
+('system_log', 'method', '请求方法', TRUE, TRUE, FALSE, FALSE, 4),
+('system_log', 'request_uri', '请求URI', TRUE, TRUE, FALSE, FALSE, 5),
+('system_log', 'params', '请求参数', FALSE, FALSE, FALSE, FALSE, 6),
+('system_log', 'client_ip', '客户端IP', TRUE, TRUE, FALSE, FALSE, 7),
+('system_log', 'status', '状态码', TRUE, TRUE, FALSE, FALSE, 8),
+('system_log', 'response_body', '响应内容', FALSE, FALSE, FALSE, FALSE, 9),
+('system_log', 'duration_ms', '执行时间(毫秒)', TRUE, TRUE, FALSE, FALSE, 10),
+('system_log', 'created_at', '创建时间', TRUE, FALSE, FALSE, FALSE, 11); 
