@@ -1,155 +1,238 @@
 package com.ycbd.demo.service;
 
-import java.sql.Connection;
-import java.sql.DatabaseMetaData;
-import java.sql.ResultSet;
 import java.util.HashMap;
 import java.util.Map;
-
-import javax.sql.DataSource;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.ApplicationArguments;
-import org.springframework.boot.ApplicationRunner;
-import org.springframework.core.annotation.Order;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 
-import cn.hutool.core.util.StrUtil;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
- * 启动时自动为缺失的数据表写入 table_attribute / column_attribute 默认配置。 只处理 fileinfo 表，后续可扩展。
+ * 表配置初始化器，用于在应用启动时初始化必要的表配置
  */
 @Component
-@Order(5)
-public class TableConfigInitializer implements ApplicationRunner {
+public class TableConfigInitializer {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(TableConfigInitializer.class);
-
-    // 如需新增表，加入此列表即可，也支持在 application.yml 通过占位符注入
-    private static final String[] TARGET_TABLES = {"fileinfo"};
+    private static final Logger logger = LoggerFactory.getLogger(TableConfigInitializer.class);
+    private static final String TOKEN_FIELD_FLAG = "isTokenField";
+    private static final String TOKEN_FIELD_NAME = "tokenName";
 
     @Autowired
     private BaseService baseService;
 
     @Autowired
-    private DataSource dataSource;
+    private TokenFieldConfigService tokenFieldConfigService;
 
-    @Override
-    public void run(ApplicationArguments args) throws Exception {
-        // 初始化AI处理器配置
-        initAiProcessorConfigs();
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
-        for (String table : TARGET_TABLES) {
-            processOneTable(table.trim());
+    @EventListener(ApplicationReadyEvent.class)
+    public void initialize() {
+        try {
+            logger.info("开始初始化表配置...");
+            initTokenFieldConfig();
+            initSecurityConfig();
+            initPluginConfig();
+            logger.info("表配置初始化完成");
+        } catch (Exception e) {
+            logger.error("表配置初始化失败", e);
         }
     }
 
-    private void processOneTable(String table) {
+    /**
+     * 初始化token字段配置
+     */
+    private void initTokenFieldConfig() {
         try {
-            Map<String, Object> exists = baseService.getOne("table_attribute", Map.of("db_table", table));
-            if (exists == null) {
-                Map<String, Object> tableAttr = new HashMap<>();
-                tableAttr.put("db_table", table);
-                tableAttr.put("table_name", table);
-                tableAttr.put("main_key", "id");
-                tableAttr.put("sort", "id DESC");
-                baseService.save("table_attribute", tableAttr);
-                LOGGER.info("已写入 table_attribute: {}", table);
+            logger.info("初始化token字段配置");
+            // 检查column_attribute表是否存在
+            if (!isTableExists("column_attribute")) {
+                logger.warn("COLUMN_ATTRIBUTE表不存在，跳过初始化");
+                return;
             }
 
-            // 列处理：若不存在则新增，存在则批量更新部分字段（IsShowInList / searchFlag 等）
-            try (Connection conn = dataSource.getConnection()) {
-                DatabaseMetaData meta = conn.getMetaData();
-                try (ResultSet rs = meta.getColumns(null, null, table, null)) {
-                    int orderNo = 1;
-                    while (rs.next()) {
-                        String colName = rs.getString("COLUMN_NAME");
-                        String typeName = rs.getString("TYPE_NAME");
+            // 确保基本字段存在
+            ensureTokenFieldExists("sys_user", "id", "userId", "用户ID");
+            ensureTokenFieldExists("sys_user", "username", "username", "用户名");
+            ensureTokenFieldExists("sys_user", "real_name", "real_name", "真实姓名");
+            ensureTokenFieldExists("sys_user", "org_id", "orgId", "组织ID");
 
-                        Map<String, Object> existingCol = baseService.getOne("column_attribute",
-                                Map.of("db_table_name", table, "column_name", colName));
-
-                        boolean textType = StrUtil.containsAnyIgnoreCase(typeName, "char", "text", "clob");
-
-                        if (existingCol == null) {
-                            Map<String, Object> colAttr = new HashMap<>();
-                            colAttr.put("db_table_name", table);
-                            colAttr.put("column_name", colName);
-                            colAttr.put("page_name", colName);
-                            colAttr.put("is_show_in_list", true);
-                            colAttr.put("search_flag", textType);
-                            colAttr.put("edit_flag", false);
-                            colAttr.put("is_required", false);
-                            colAttr.put("query_type", "=");
-                            colAttr.put("show_type", "input");
-                            colAttr.put("order_no", orderNo++);
-
-                            if ("id".equalsIgnoreCase(colName)) {
-                                colAttr.put("is_show_in_list", false);
-                                colAttr.put("show_type", "hidden");
-                            }
-                            baseService.save("column_attribute", colAttr);
-                        } else {
-                            // 批量更新部分状态：保持 searchFlag 与字段类型一致
-                            Map<String, Object> updateMap = new HashMap<>();
-                            updateMap.put("id", existingCol.get("id"));
-
-                            // 动态规则：
-                            // 1. search_flag 与字段类型关联
-                            updateMap.put("search_flag", textType);
-
-                            // 2. is_show_in_list：主键或大字段(>1024)默认不显示
-                            boolean showInList = !"id".equalsIgnoreCase(colName) && !"text".equalsIgnoreCase(typeName);
-                            updateMap.put("is_show_in_list", showInList);
-
-                            // 3. edit_flag：仅非主键且非只读字段允许编辑
-                            updateMap.put("edit_flag", !"id".equalsIgnoreCase(colName));
-
-                            baseService.update("column_attribute", updateMap, existingCol.get("id"));
-                        }
-                    }
-                }
-            }
-
-            // 业务校验：为 filename+url 唯一键自动插入 "isNotExit" 校验
-            if ("fileinfo".equalsIgnoreCase(table)) {
-                Map<String, Object> ruleExists = baseService.getOne("column_check_property",
-                        Map.of("check_table", table, "check_column", "filename"));
-                if (ruleExists == null) {
-                    Map<String, Object> rule = new HashMap<>();
-                    rule.put("check_table", table);
-                    rule.put("target_table", table);
-                    rule.put("check_column", "filename,url");
-                    rule.put("check_mode", "isNotExit");
-                    rule.put("check_order", 1);
-                    rule.put("status", 1);
-                    rule.put("errorMsg", "filename+url 已存在");
-                    baseService.save("column_check_property", rule);
-                    LOGGER.info("已为 {} 写入唯一性校验规则", table);
-                }
-            }
+            // 刷新token字段配置
+            tokenFieldConfigService.refreshTokenFieldConfig();
         } catch (Exception e) {
-            LOGGER.warn("自动生成配置失败: {}", table, e);
+            logger.error("初始化token字段配置失败", e);
         }
     }
 
-    private void initAiProcessorConfigs() {
+    /**
+     * 确保token字段存在
+     */
+    private void ensureTokenFieldExists(String tableName, String columnName, String tokenName, String description) {
         try {
-            String procName = "ImageDescriptionProcessor";
-            Map<String, Object> existing = baseService.getOne("ai_processor_config", Map.of("processor_name", procName));
-            if (existing == null) {
-                Map<String, Object> row = new HashMap<>();
-                row.put("processor_name", procName);
-                row.put("class_name", "com.ycbd.demo.plugin.aiprocessor.processors.ImageDescriptionProcessor");
-                row.put("description", "图片描述生成");
-                row.put("is_active", true);
-                baseService.save("ai_processor_config", row);
-                LOGGER.info("已写入 ai_processor_config: {}", procName);
+            // 查询列属性
+            Map<String, Object> params = new HashMap<>();
+            params.put("db_table_name", tableName);
+            params.put("column_name", columnName);
+
+            Map<String, Object> attr = baseService.getOne("column_attribute", params);
+            if (attr == null) {
+                logger.warn("未找到列属性: {}.{}, 跳过token字段配置", tableName, columnName);
+                return;
+            }
+
+            // 解析other_info字段
+            String otherInfo = (String) attr.get("other_info");
+            Map<String, Object> otherMap;
+            if (otherInfo == null || otherInfo.isEmpty()) {
+                otherMap = new HashMap<>();
+            } else {
+                try {
+                    otherMap = objectMapper.readValue(otherInfo, Map.class);
+                } catch (Exception e) {
+                    logger.warn("解析other_info字段JSON失败: {}, 创建新的配置", otherInfo);
+                    otherMap = new HashMap<>();
+                }
+            }
+
+            // 设置token字段标识
+            boolean updated = false;
+            if (!Boolean.TRUE.equals(otherMap.get(TOKEN_FIELD_FLAG))) {
+                otherMap.put(TOKEN_FIELD_FLAG, true);
+                updated = true;
+            }
+
+            if (!tokenName.equals(columnName) && !tokenName.equals(otherMap.get(TOKEN_FIELD_NAME))) {
+                otherMap.put(TOKEN_FIELD_NAME, tokenName);
+                updated = true;
+            }
+
+            if (updated) {
+                // 更新列属性
+                String newOtherInfo = objectMapper.writeValueAsString(otherMap);
+                Map<String, Object> updateData = new HashMap<>();
+                updateData.put("id", attr.get("id"));
+                updateData.put("other_info", newOtherInfo);
+
+                baseService.update("column_attribute", updateData, attr.get("id"));
+                logger.info("更新token字段配置: {}.{} -> {}", tableName, columnName, tokenName);
+            } else {
+                logger.info("token字段配置已存在: {}.{} -> {}", tableName, columnName, tokenName);
             }
         } catch (Exception e) {
-            LOGGER.warn("初始化 ai_processor_config 失败", e);
+            logger.error("确保token字段存在失败: " + tableName + "." + columnName, e);
+        }
+    }
+
+    /**
+     * 初始化安全配置
+     */
+    private void initSecurityConfig() {
+        try {
+            logger.info("初始化安全配置");
+            // 检查security_config表是否存在
+            if (!isTableExists("security_config")) {
+                logger.warn("SECURITY_CONFIG表不存在，跳过初始化");
+                return;
+            }
+
+            // 确保基本白名单配置存在
+            ensureSecurityConfigExists("WHITELIST", "/api/core/register", true);
+            ensureSecurityConfigExists("WHITELIST", "/api/core/login", true);
+            ensureSecurityConfigExists("WHITELIST", "/h2-console/**", true);
+            ensureSecurityConfigExists("WHITELIST", "/swagger-ui.html", true);
+            ensureSecurityConfigExists("WHITELIST", "/swagger-ui/**", true);
+            ensureSecurityConfigExists("WHITELIST", "/api-docs/**", true);
+            ensureSecurityConfigExists("WHITELIST", "/api/common/health", true);
+        } catch (Exception e) {
+            logger.error("初始化安全配置失败", e);
+        }
+    }
+
+    /**
+     * 确保安全配置存在
+     */
+    private void ensureSecurityConfigExists(String type, String pattern, boolean isActive) {
+        try {
+            Map<String, Object> params = new HashMap<>();
+            params.put("type", type);
+            params.put("pattern", pattern);
+
+            Map<String, Object> existingConfig = baseService.getOne("security_config", params);
+            if (existingConfig == null) {
+                logger.info("添加安全配置: {} - {}", type, pattern);
+                Map<String, Object> newConfig = new HashMap<>();
+                newConfig.put("type", type);
+                newConfig.put("pattern", pattern);
+                newConfig.put("is_active", isActive);
+                baseService.save("security_config", newConfig);
+            } else {
+                logger.info("安全配置已存在: {} - {}", type, pattern);
+            }
+        } catch (Exception e) {
+            logger.error("确保安全配置存在失败: " + type + " - " + pattern, e);
+        }
+    }
+
+    /**
+     * 初始化插件配置
+     */
+    private void initPluginConfig() {
+        try {
+            logger.info("初始化插件配置");
+            // 检查plugin_config表是否存在
+            if (!isTableExists("plugin_config")) {
+                logger.warn("PLUGIN_CONFIG表不存在，跳过初始化");
+                return;
+            }
+
+            // 确保内置插件配置存在
+            ensurePluginConfigExists("TestService", "com.ycbd.demo.plugin.TestServicePlugin", "测试服务插件", true);
+            ensurePluginConfigExists("CommandExecutor", "com.ycbd.demo.plugin.commandexecutor.CommandExecutorPlugin", "命令执行插件", true);
+        } catch (Exception e) {
+            logger.error("初始化插件配置失败", e);
+        }
+    }
+
+    /**
+     * 确保插件配置存在
+     */
+    private void ensurePluginConfigExists(String pluginName, String className, String description, boolean isActive) {
+        try {
+            Map<String, Object> params = new HashMap<>();
+            params.put("plugin_name", pluginName);
+
+            Map<String, Object> existingConfig = baseService.getOne("plugin_config", params);
+            if (existingConfig == null) {
+                logger.info("添加插件配置: {}", pluginName);
+                Map<String, Object> newConfig = new HashMap<>();
+                newConfig.put("plugin_name", pluginName);
+                newConfig.put("class_name", className);
+                newConfig.put("description", description);
+                newConfig.put("is_active", isActive);
+                baseService.save("plugin_config", newConfig);
+            } else {
+                logger.info("插件配置已存在: {}", pluginName);
+            }
+        } catch (Exception e) {
+            logger.error("确保插件配置存在失败: " + pluginName, e);
+        }
+    }
+
+    /**
+     * 检查表是否存在 通过尝试查询表中的一条记录来判断表是否存在
+     */
+    private boolean isTableExists(String tableName) {
+        try {
+            // 尝试查询表中的一条记录，如果表不存在会抛出异常
+            baseService.queryList(tableName, 0, 1, null, null, null, null, null);
+            return true;
+        } catch (Exception e) {
+            logger.warn("表 {} 不存在或无法访问: {}", tableName, e.getMessage());
+            return false;
         }
     }
 }

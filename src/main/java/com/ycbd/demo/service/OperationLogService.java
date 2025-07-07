@@ -6,8 +6,11 @@ import java.util.Map;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ycbd.demo.utils.Tools;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -48,7 +51,7 @@ public class OperationLogService {
             }
             data.put("method", request.getMethod());
             data.put("request_uri", request.getRequestURI());
-            data.put("client_ip", getClientIp(request));
+            data.put("client_ip", Tools.getIpAddr((ServletRequestAttributes) RequestContextHolder.getRequestAttributes()));
             // 尝试序列化参数
             try {
                 String paramsJson = objectMapper.writeValueAsString(request.getParameterMap());
@@ -74,23 +77,5 @@ public class OperationLogService {
             // 日志记录失败不能影响主流程
             e.printStackTrace();
         }
-    }
-
-    private String getClientIp(HttpServletRequest request) {
-        String ip = request.getHeader("X-Forwarded-For");
-        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
-            ip = request.getHeader("Proxy-Client-IP");
-        }
-        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
-            ip = request.getHeader("WL-Proxy-Client-IP");
-        }
-        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
-            ip = request.getRemoteAddr();
-        }
-        // 取第一个IP
-        if (ip != null && ip.contains(",")) {
-            ip = ip.split(",")[0].trim();
-        }
-        return ip;
     }
 }

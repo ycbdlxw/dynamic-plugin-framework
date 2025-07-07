@@ -4,6 +4,7 @@ import java.io.File;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -49,11 +50,6 @@ public class PluginEngine implements ApplicationContextAware {
                 return "插件 " + pluginName + " 已经加载，无需重复加载";
             }
 
-            // 特殊处理TestService插件（直接加载，避免数据库查询）
-            if ("TestService".equals(pluginName)) {
-                return loadTestServicePlugin();
-            }
-
             // 2. 从数据库获取插件配置
             Map<String, Object> params = new HashMap<>();
             params.put("plugin_name", pluginName);
@@ -77,65 +73,71 @@ public class PluginEngine implements ApplicationContextAware {
         }
     }
 
-    private String loadTestServicePlugin() {
+    /**
+     * 初始化系统内置插件 在系统启动时调用，加载所有激活的插件
+     */
+    public void initializeBuiltinPlugins() {
         try {
-            // 直接加载TestServicePlugin类
-            Class<?> pluginClass = TestServicePlugin.class;
-            IPlugin plugin = (TestServicePlugin) pluginClass.getDeclaredConstructor().newInstance();
+            logger.info("初始化系统内置插件");
 
-            // 注入依赖
-            AutowireCapableBeanFactory beanFactory = applicationContext.getAutowireCapableBeanFactory();
-            beanFactory.autowireBean(plugin);
+            // 从数据库获取所有激活的插件配置
+            Map<String, Object> params = new HashMap<>();
+            params.put("is_active", true);
+            List<Map<String, Object>> activePlugins = baseService.queryList("plugin_config", 0, 100, null, params, null, null, null);
 
-            // 若插件实现 ApplicationContextAware，则手动注入 ApplicationContext，
-            // 解决通过反射实例化导致 setApplicationContext 未被调用的问题
-            if (plugin instanceof ApplicationContextAware aware) {
-                aware.setApplicationContext(applicationContext);
+            if (activePlugins == null || activePlugins.isEmpty()) {
+                logger.info("没有找到激活的插件配置");
+                return;
             }
 
-            // 初始化插件
-            plugin.initialize();
-            loadedPlugins.put("TestService", plugin);
+            for (Map<String, Object> plugin : activePlugins) {
+                String pluginName = (String) plugin.get("plugin_name");
+                String className = (String) plugin.get("class_name");
 
-            return "插件 TestService 加载成功";
+                try {
+                    logger.info("加载内置插件: {}", pluginName);
+                    loadPluginByClassName(className);
+                } catch (Exception e) {
+                    logger.error("加载内置插件失败: " + pluginName, e);
+                }
+            }
         } catch (Exception e) {
-            logger.error("加载TestService插件失败", e);
-            return "加载TestService插件失败: " + e.getMessage();
+            logger.error("初始化系统内置插件失败", e);
         }
     }
 
     private String loadPluginByClassName(String className) {
         try {
-            // 3. 创建类加载器
-            File pluginDir = new File("plugins");
-            if (!pluginDir.exists() || !pluginDir.isDirectory()) {
-                // 尝试创建插件目录
-                if (!pluginDir.mkdirs()) {
-                    return "插件目录不存在且无法创建";
-                }
-            }
-
-            URL[] urls = new URL[]{pluginDir.toURI().toURL()};
-            URLClassLoader classLoader = new URLClassLoader(urls, getClass().getClassLoader());
-
-            // 4. 加载插件主类
+            // 1. 尝试从应用类加载器加载（内置插件）
             Class<?> pluginClass;
             try {
-                // 尝试从插件目录加载
-                pluginClass = classLoader.loadClass(className);
-            } catch (ClassNotFoundException e) {
-                // 如果插件目录中不存在，则尝试从应用类加载器加载
-                logger.info("插件目录中未找到类 {}，尝试从应用类加载器加载", className);
                 pluginClass = getClass().getClassLoader().loadClass(className);
+                logger.info("从应用类加载器加载插件类: {}", className);
+            } catch (ClassNotFoundException e) {
+                // 2. 如果内置插件加载失败，尝试从插件目录加载
+                logger.info("应用类加载器中未找到类 {}，尝试从插件目录加载", className);
+
+                // 创建插件目录
+                File pluginDir = new File("plugins");
+                if (!pluginDir.exists() || !pluginDir.isDirectory()) {
+                    if (!pluginDir.mkdirs()) {
+                        return "插件目录不存在且无法创建";
+                    }
+                }
+
+                URL[] urls = new URL[]{pluginDir.toURI().toURL()};
+                URLClassLoader classLoader = new URLClassLoader(urls, getClass().getClassLoader());
+                pluginClass = classLoader.loadClass(className);
             }
 
+            // 3. 实例化插件
             IPlugin plugin = (IPlugin) pluginClass.getDeclaredConstructor().newInstance();
 
-            // 5. 注入依赖
+            // 4. 注入依赖
             AutowireCapableBeanFactory beanFactory = applicationContext.getAutowireCapableBeanFactory();
             beanFactory.autowireBean(plugin);
 
-            // 主动注入 ApplicationContext 以避免插件内部无法获取
+            // 5. 主动注入 ApplicationContext 以避免插件内部无法获取
             if (plugin instanceof ApplicationContextAware aware) {
                 aware.setApplicationContext(applicationContext);
             }
@@ -144,7 +146,11 @@ public class PluginEngine implements ApplicationContextAware {
             plugin.initialize();
             String pluginName = plugin.getName();
             loadedPlugins.put(pluginName, plugin);
-            pluginClassLoaders.put(pluginName, classLoader);
+
+            // 7. 只有外部插件才需要保存类加载器
+            if (pluginClass.getClassLoader() instanceof URLClassLoader) {
+                pluginClassLoaders.put(pluginName, (URLClassLoader) pluginClass.getClassLoader());
+            }
 
             return "插件 " + pluginName + " 加载成功";
         } catch (Exception e) {

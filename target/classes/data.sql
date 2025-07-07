@@ -7,14 +7,14 @@ INSERT INTO table_attribute (db_table, table_name, main_key, sort, module, group
 ('sys_user', '系统用户', 'id', 'created_at DESC', 'system', NULL, 0, 0, 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, 0, NULL, NULL);
 
 -- 字段属性配置
-INSERT INTO column_attribute (db_table_name, column_name, page_name, is_show_in_list, search_flag, edit_flag, is_required, order_no) VALUES
-('sys_user', 'id', 'ID', TRUE, FALSE, FALSE, FALSE, 1),
-('sys_user', 'username', '用户名', TRUE, TRUE, TRUE, TRUE, 2),
-('sys_user', 'password', '密码', FALSE, FALSE, TRUE, TRUE, 3),
-('sys_user', 'real_name', '真实姓名', TRUE, TRUE, TRUE, FALSE, 4),
-('sys_user', 'email', '邮箱', TRUE, TRUE, TRUE, FALSE, 5),
-('sys_user', 'status', '状态', TRUE, TRUE, TRUE, FALSE, 6),
-('sys_user', 'created_at', '创建时间', TRUE, FALSE, FALSE, FALSE, 7);
+INSERT INTO column_attribute (db_table_name, column_name, page_name, is_show_in_list, search_flag, edit_flag, is_required, order_no, other_info) VALUES
+('sys_user', 'id', 'ID', TRUE, FALSE, FALSE, FALSE, 1, '{"isTokenField":true,"tokenName":"userId"}'),
+('sys_user', 'username', '用户名', TRUE, TRUE, TRUE, TRUE, 2, '{"isTokenField":true}'),
+('sys_user', 'password', '密码', FALSE, FALSE, TRUE, TRUE, 3, NULL),
+('sys_user', 'real_name', '真实姓名', TRUE, TRUE, TRUE, FALSE, 4, '{"isTokenField":true,"tokenName":"real_name"}'),
+('sys_user', 'email', '邮箱', TRUE, TRUE, TRUE, FALSE, 5, NULL),
+('sys_user', 'status', '状态', TRUE, TRUE, TRUE, FALSE, 6, NULL),
+('sys_user', 'created_at', '创建时间', TRUE, FALSE, FALSE, FALSE, 7, NULL);
 
 -- 系统字典
 INSERT INTO sys_dict_category (code, name) VALUES ('boolean_flag', '布尔标识');

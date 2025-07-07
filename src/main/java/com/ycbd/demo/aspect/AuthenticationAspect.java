@@ -52,8 +52,8 @@ public class AuthenticationAspect {
     private final AntPathMatcher pathMatcher = new AntPathMatcher();
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    // 白名单路径
-    private static final Set<String> WHITE_LIST = new HashSet<>(Arrays.asList(
+    // 默认白名单路径（仅作为备用，优先使用数据库配置）
+    private static final Set<String> DEFAULT_WHITELIST = new HashSet<>(Arrays.asList(
             "/api/core/register",
             "/api/core/login",
             "/h2-console/**",
@@ -74,7 +74,7 @@ public class AuthenticationAspect {
      */
     private void ensureDefaultWhitelistExists() {
         try {
-            for (String pattern : WHITE_LIST) {
+            for (String pattern : DEFAULT_WHITELIST) {
                 Map<String, Object> params = new HashMap<>();
                 params.put("type", "WHITELIST");
                 params.put("pattern", pattern);
@@ -140,41 +140,34 @@ public class AuthenticationAspect {
 
                 if (!currentUser.containsKey("userId") || !currentUser.containsKey("username")) {
                     logger.warn("Token缺少必要的用户信息字段: {}", currentUser.keySet());
-
-                    // 测试环境下，如果缺少必要字段，则使用默认管理员信息
-                    logger.info("使用默认管理员信息");
-                    Map<String, Object> defaultAdmin = new HashMap<>();
-                    defaultAdmin.put("userId", 1);
-                    defaultAdmin.put("username", "admin");
-                    defaultAdmin.put("roles", Arrays.asList("ADMIN", "USER"));
-                    currentUser = defaultAdmin;
+                    response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                    response.setContentType("application/json;charset=UTF-8");
+                    response.getWriter().write(objectMapper.writeValueAsString(ApiResponse.of(ResultCode.UNAUTHORIZED, "Token missing required user fields")));
+                    return null;
                 }
 
                 Map<String, Boolean> enabledFields = tokenFieldConfigService.getEnabledTokenFields();
                 logger.info("启用的Token字段: {}", enabledFields);
 
-                // 不再过滤字段，确保userId和username字段存在
-                if (!currentUser.containsKey("userId")) {
-                    currentUser.put("userId", 1);
-                }
-                if (!currentUser.containsKey("username")) {
-                    currentUser.put("username", "admin");
+                // 过滤掉未启用的字段
+                Map<String, Object> filteredUser = new HashMap<>();
+                for (Map.Entry<String, Object> entry : currentUser.entrySet()) {
+                    String fieldName = entry.getKey();
+                    if ("userId".equals(fieldName) || "username".equals(fieldName)
+                            || Boolean.TRUE.equals(enabledFields.get(fieldName))) {
+                        filteredUser.put(fieldName, entry.getValue());
+                    }
                 }
 
-                logger.info("最终用户信息: {}", currentUser);
-                UserContext.setUser(currentUser);
+                logger.info("最终用户信息: {}", filteredUser);
+                UserContext.setUser(filteredUser);
 
                 if (logger.isDebugEnabled()) {
-                    logger.debug("Token验证成功，用户ID: {}, 用户名: {}", currentUser.get("userId"), currentUser.get("username"));
+                    logger.debug("Token验证成功，用户ID: {}, 用户名: {}", filteredUser.get("userId"), filteredUser.get("username"));
                 }
             } else {
-                // 对于白名单路径，设置默认管理员用户信息
-                Map<String, Object> defaultAdmin = new HashMap<>();
-                defaultAdmin.put("userId", 1);
-                defaultAdmin.put("username", "admin");
-                defaultAdmin.put("roles", Arrays.asList("ADMIN", "USER"));
-                UserContext.setUser(defaultAdmin);
-                logger.info("白名单路径，使用默认管理员信息");
+                // 对于白名单路径，不设置用户信息
+                logger.info("白名单路径，跳过用户认证");
             }
 
             // 执行目标方法
@@ -183,7 +176,7 @@ public class AuthenticationAspect {
         } finally {
             long duration = System.currentTimeMillis() - startTime;
             try {
-                operationLogService.log(request, currentUser != null ? currentUser : UserContext.getUser(), response, duration, result);
+                operationLogService.log(request, currentUser, response, duration, result);
             } catch (Exception e) {
                 logger.error("保存操作日志失败", e);
             }
@@ -193,7 +186,7 @@ public class AuthenticationAspect {
 
     @Cacheable(value = "security_whitelist", key = "#uri")
     public boolean isWhiteListed(String uri) {
-        logger.info("检查URI '{}' 是否在白名单中 (DB Query)", uri);
+        logger.info("检查URI '{}' 是否在白名单中", uri);
 
         // 健康检查端点直接放行，无需查询数据库
         if ("/api/common/health".equals(uri)) {
@@ -217,12 +210,13 @@ public class AuthenticationAspect {
                 }
             }
 
+            logger.debug("URI '{}' 不在数据库白名单中", uri);
             return false;
         } catch (Exception e) {
             logger.error("从数据库获取白名单失败，使用默认白名单", e);
 
             // 数据库查询失败时，使用默认白名单作为备用
-            for (String pattern : WHITE_LIST) {
+            for (String pattern : DEFAULT_WHITELIST) {
                 if (pathMatcher.match(pattern, uri)) {
                     return true;
                 }

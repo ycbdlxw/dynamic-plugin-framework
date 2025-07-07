@@ -7,12 +7,18 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
+
+import com.ycbd.demo.service.TokenFieldConfigService;
 
 import cn.hutool.core.convert.Convert;
+import jakarta.annotation.PostConstruct;
 
 /**
  * 用户上下文，支持动态字段配置
  */
+@Component
 public class UserContext {
 
     private static final Logger logger = LoggerFactory.getLogger(UserContext.class);
@@ -20,6 +26,19 @@ public class UserContext {
 
     // 缓存已配置的token字段，避免频繁查询数据库
     private static volatile Map<String, Boolean> configuredFields = new ConcurrentHashMap<>();
+
+    private static TokenFieldConfigService tokenFieldConfigService;
+
+    @Autowired
+    public UserContext(TokenFieldConfigService tokenFieldConfigService) {
+        UserContext.tokenFieldConfigService = tokenFieldConfigService;
+    }
+
+    @PostConstruct
+    public void init() {
+        // 初始化时加载所有字段配置
+        refreshFieldConfig();
+    }
 
     /**
      * 设置当前线程的用户信息
@@ -101,7 +120,7 @@ public class UserContext {
     }
 
     /**
-     * 检查字段是否被启用 注意：此方法应该从数据库中查询token_field_config表 为了避免频繁查询数据库，这里使用了内存缓存
+     * 检查字段是否被启用
      */
     private static boolean isFieldEnabled(String fieldName) {
         // 默认启用userId和username字段，确保基本功能可用
@@ -115,10 +134,42 @@ public class UserContext {
             return enabled;
         }
 
-        // 实际项目中，这里应该查询数据库
-        // 为了演示，我们假设所有字段都是启用的
-        configuredFields.put(fieldName, true);
-        return true;
+        // 如果tokenFieldConfigService尚未初始化，则返回true
+        if (tokenFieldConfigService == null) {
+            logger.warn("TokenFieldConfigService尚未初始化，默认启用字段: {}", fieldName);
+            return true;
+        }
+
+        try {
+            // 从TokenFieldConfigService获取字段配置
+            Map<String, Boolean> enabledFields = tokenFieldConfigService.getEnabledTokenFields();
+            Boolean isEnabled = enabledFields.getOrDefault(fieldName, false);
+
+            // 更新缓存
+            configuredFields.put(fieldName, isEnabled);
+            return isEnabled;
+        } catch (Exception e) {
+            logger.error("查询字段配置失败: " + fieldName, e);
+            // 出错时默认禁用
+            configuredFields.put(fieldName, false);
+            return false;
+        }
+    }
+
+    /**
+     * 刷新字段配置缓存 当token_field_config表更新时调用此方法
+     */
+    public static void refreshFieldConfig() {
+        try {
+            if (tokenFieldConfigService != null) {
+                Map<String, Boolean> newConfig = tokenFieldConfigService.getEnabledTokenFields();
+                configuredFields.clear();
+                configuredFields.putAll(newConfig);
+                logger.info("刷新字段配置成功，共加载{}个字段配置", newConfig.size());
+            }
+        } catch (Exception e) {
+            logger.error("刷新字段配置失败", e);
+        }
     }
 
     /**

@@ -5,6 +5,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -13,6 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.ycbd.demo.utils.ApiResponse;
+import com.ycbd.demo.utils.ResultCode;
 
 import cn.hutool.core.map.MapUtil;
 import cn.hutool.core.util.StrUtil;
@@ -154,26 +156,78 @@ public class CommonService {
             return ApiResponse.failed("用户名和密码不能为空");
         }
 
-        // 硬编码管理员用户信息，避免数据库查询错误
-        if ("admin".equals(username)) {
-            // 不再校验密码，直接返回成功
-            Map<String, Object> user = new HashMap<>();
-            user.put("id", 1);
-            user.put("username", "admin");
-            user.put("real_name", "系统管理员");
-            user.put("status", 1);
-            user.put("org_id", 1);
-            user.put("org_name", "总公司");
-            user.put("default_remote_id", null);
-            user.put("roles", Arrays.asList("ADMIN", "USER"));
+        try {
+            // 从数据库查询用户信息
+            Map<String, Object> queryParams = new HashMap<>();
+            queryParams.put("username", username);
+            Map<String, Object> user = baseService.getOne("sys_user", queryParams);
+
+            if (user == null) {
+                logger.warn("用户不存在: {}", username);
+                return ApiResponse.failed("用户名或密码错误");
+            }
+
+            // 检查用户状态
+            Integer status = MapUtil.getInt(user, "status");
+            if (status == null || status != 1) {
+                logger.warn("用户状态异常: {}, status={}", username, status);
+                return ApiResponse.failed("账户已被禁用，请联系管理员");
+            }
+
+            // 验证密码
+            String hashedPassword = MapUtil.getStr(user, "password");
+            if (StrUtil.isEmpty(hashedPassword) || !BCrypt.checkpw(password, hashedPassword)) {
+                logger.warn("密码验证失败: {}", username);
+                return ApiResponse.failed("用户名或密码错误");
+            }
+
+            // 获取用户角色
+            List<Map<String, Object>> roleList = baseService.queryList(
+                    "sys_user_role ur JOIN sys_role r ON ur.role_id = r.id",
+                    0, 100, "r.role_code",
+                    Map.of("ur.user_id", user.get("id")),
+                    null, null, null);
+
+            List<String> roles = roleList.stream()
+                    .map(r -> MapUtil.getStr(r, "role_code"))
+                    .filter(StrUtil::isNotEmpty)
+                    .collect(Collectors.toList());
+
+            // 获取用户所属组织
+            Integer orgId = MapUtil.getInt(user, "org_id");
+            String orgName = "";
+            if (orgId != null && orgId > 0) {
+                Map<String, Object> org = baseService.getOne("sys_org", Map.of("id", orgId));
+                if (org != null) {
+                    orgName = MapUtil.getStr(org, "org_name", "");
+                }
+            }
+
+            // 构建用户信息
+            Map<String, Object> userInfo = new HashMap<>();
+            userInfo.put("id", user.get("id"));
+            userInfo.put("userId", user.get("id")); // 兼容旧代码
+            userInfo.put("username", username);
+            userInfo.put("real_name", user.get("real_name"));
+            userInfo.put("status", status);
+            userInfo.put("org_id", orgId);
+            userInfo.put("orgId", orgId); // 兼容旧代码
+            userInfo.put("org_name", orgName);
+            userInfo.put("orgName", orgName); // 兼容旧代码
+            userInfo.put("roles", roles.isEmpty() ? Arrays.asList("USER") : roles);
 
             // 生成JWT令牌
-            String token = jwtService.generateToken(user);
-            user.put("token", token);
+            String token = jwtService.generateToken(userInfo);
+            userInfo.put("token", token);
 
-            return ApiResponse.success(user);
-        } else {
-            return ApiResponse.failed("用户不存在");
+            return ApiResponse.success(userInfo);
+        } catch (Exception e) {
+            logger.error("登录过程中发生错误", e);
+            // 创建一个包含错误信息的Map
+            Map<String, Object> errorData = new HashMap<>();
+            errorData.put("error", "登录过程中发生错误，请稍后再试");
+            errorData.put("errorDetail", e.getMessage());
+            return ApiResponse.of(ResultCode.INTERNAL_ERROR, errorData);
         }
     }
 
