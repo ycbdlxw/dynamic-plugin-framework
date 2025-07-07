@@ -1,0 +1,47 @@
+# 新用户注册和登录测试脚本
+# 使用方法: sh run_new_user_test.sh
+# 创建日期: 2023-07-01
+# 创建人: 系统管理员
+
+# 1. 注册新用户
+echo "测试1: 注册新用户"
+curl -X POST "http://localhost:8081/api/core/register" -H "Content-Type: application/json" -d '{"username": "newuser","password": "password123","real_name": "新用户","email": "newuser@example.com","status": 1}' -w "\n\nStatus: %{http_code}\nTime: %{time_total}s\n\n"
+
+# 2. 新用户登录
+echo "测试2: 新用户登录"
+curl -X POST "http://localhost:8081/api/core/login" -H "Content-Type: application/json" -d '{"username": "newuser","password": "password123"}' -w "\n\nStatus: %{http_code}\nTime: %{time_total}s\n\n" > login_response.txt
+
+# 3. 提取Token
+echo "提取Token..."
+TOKEN=$(cat login_response.txt | grep -o '"token":"[^"]*' | cut -d'"' -f4)
+
+# 4. 使用新用户Token查询用户列表
+echo "测试3: 使用新用户Token查询用户列表"
+echo "检查Token是否获取成功..."
+if [ -n "$TOKEN" ]; then
+  echo "获取到的Token: ${TOKEN:0:20}..."
+  curl -X GET "http://localhost:8081/api/common/list?targetTable=sys_user" -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" -w "\n\nStatus: %{http_code}\nTime: %{time_total}s\n\n"
+else
+  echo "登录失败，无法获取Token"
+fi
+
+# 5. 为新用户分配角色
+echo "测试4: 为新用户分配角色"
+# 先获取管理员Token
+echo "获取管理员Token..."
+curl -s -X POST "http://localhost:8081/api/core/login" -H "Content-Type: application/json" -d '{"username":"admin","password":"ycbd1234"}' > admin_token.txt
+echo "提取管理员Token..."
+ADMIN_TOKEN=$(cat admin_token.txt | grep -o '"token":"[^"]*' | cut -d'"' -f4)
+
+# 检查管理员Token
+echo "检查管理员Token是否获取成功..."
+if [ -n "$ADMIN_TOKEN" ]; then
+  echo "获取到管理员Token，分配角色..."
+  curl -X POST "http://localhost:8081/api/common/save?targetTable=sys_user_role" -H "Content-Type: application/json" -H "Authorization: Bearer $ADMIN_TOKEN" -d '{"user_id": 3, "role_id": 2}' -w "\n\nStatus: %{http_code}\nTime: %{time_total}s\n\n"
+else
+  echo "获取管理员Token失败，无法分配角色"
+fi
+
+# 清理临时文件
+echo "清理临时文件..."
+rm -f login_response.txt admin_token.txt 

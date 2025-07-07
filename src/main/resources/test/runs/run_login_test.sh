@@ -1,10 +1,6 @@
 #!/bin/bash
 
-# WHERE子句构建优化测试主脚本
-# 作者：ycbd
-# 日期：$(date +%Y-%m-%d)
-
-# 设置变量
+# 设置基础变量
 API_BASE="http://localhost:8081"
 SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 RESULT_DIR="${SCRIPT_DIR}/test_results"
@@ -15,7 +11,7 @@ mkdir -p "${RESULT_DIR}"
 mkdir -p "${LOG_DIR}"
 
 # 日志文件
-LOG_FILE="${LOG_DIR}/where_builder_test_$(date +%Y%m%d_%H%M%S).log"
+LOG_FILE="${LOG_DIR}/login_test_$(date +%Y%m%d_%H%M%S).log"
 
 # 记录日志的函数
 log() {
@@ -24,7 +20,7 @@ log() {
 
 # 主函数
 main() {
-  log "开始执行WHERE子句构建优化测试"
+  log "开始执行登录测试"
   
   # 健康检查
   log "执行健康检查"
@@ -37,11 +33,11 @@ main() {
     exit 1
   fi
 
-  # 执行WHERE子句构建测试
-  log "执行WHERE子句构建测试"
-  curl -s -X POST "${API_BASE}/api/test/execute?scriptPath=${SCRIPT_DIR}/test_where_builder.curl&resultDir=${RESULT_DIR}&useCurrentDir=true"
+  # 执行登录测试
+  log "执行登录测试"
+  curl -s -X POST "${API_BASE}/api/test/execute?scriptPath=${SCRIPT_DIR}/test_login.curl&resultDir=${RESULT_DIR}&useCurrentDir=true"
   
-  log "WHERE子句构建测试执行完成，结果保存在 ${RESULT_DIR}"
+  log "登录测试执行完成，结果保存在 ${RESULT_DIR}"
 }
 
 # 执行主函数

@@ -1,0 +1,43 @@
+# 用户查询测试脚本
+# 使用方法: sh test_user_query.curl
+
+# 获取Token
+echo "获取Token..."
+TOKEN=$(curl -s -X POST "http://localhost:8081/api/core/login" \
+  -H "Content-Type: application/json" \
+  -d '{"username":"admin","password":"ycbd1234"}' | grep -o '"token":"[^"]*' | cut -d'"' -f4)
+
+if [ -z "$TOKEN" ]; then
+  echo "获取Token失败，请检查登录接口"
+  exit 1
+fi
+
+echo "Token获取成功"
+
+# 1. 查询所有用户
+echo -e "\n\n测试1: 查询所有用户"
+curl -X GET "http://localhost:8081/api/common/list?targetTable=sys_user" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -w "\n\nStatus: %{http_code}\nTime: %{time_total}s\n\n"
+
+# 2. 按用户名查询
+echo -e "\n\n测试2: 按用户名查询"
+curl -X GET "http://localhost:8081/api/common/list?targetTable=sys_user&username=admin" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -w "\n\nStatus: %{http_code}\nTime: %{time_total}s\n\n"
+
+# 3. 分页查询
+echo -e "\n\n测试3: 分页查询"
+curl -X GET "http://localhost:8081/api/common/list?targetTable=sys_user&pageIndex=0&pageSize=5" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -w "\n\nStatus: %{http_code}\nTime: %{time_total}s\n\n"
+
+# 4. 按状态查询
+echo -e "\n\n测试4: 按状态查询"
+curl -X GET "http://localhost:8081/api/common/list?targetTable=sys_user&status=1" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -w "\n\nStatus: %{http_code}\nTime: %{time_total}s\n\n" 

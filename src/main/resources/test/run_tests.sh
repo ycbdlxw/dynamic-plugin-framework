@@ -2,9 +2,9 @@
 
 # 设置基础变量
 API_BASE="http://localhost:8081"
-SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 RESULT_DIR="${SCRIPT_DIR}/test_results"
-LOG_DIR="./logs"
+LOG_DIR="${SCRIPT_DIR}/logs"
 
 # 创建结果目录
 mkdir -p "${RESULT_DIR}"
@@ -55,17 +55,23 @@ main() {
     exit 1
   fi
 
-  # 运行基本测试
-  run_test "${SCRIPT_DIR}/test_basic.curl"
+  # 运行登录测试
+  run_test "${SCRIPT_DIR}/test_login.curl"
   
-  # 运行命令执行器测试
-  run_test "${SCRIPT_DIR}/test_command_executor.curl"
+  # 运行新用户测试
+  run_test "${SCRIPT_DIR}/test_new_user.curl"
+  
+  # 运行用户查询测试
+  run_test "${SCRIPT_DIR}/test_user_query.curl"
+  
+  # 运行数据预处理器测试
+  run_test "${SCRIPT_DIR}/test_data_preprocessor.curl"
+  
+  # 运行过滤规则测试
+  run_test "${SCRIPT_DIR}/test_filter_rule.curl"
   
   # 运行通用API测试
   run_test "${SCRIPT_DIR}/test_common_api.curl"
-  
-  # 运行WHERE构建器测试
-  run_test "${SCRIPT_DIR}/test_where_builder.curl"
   
   log "所有测试执行完成，结果保存在 ${RESULT_DIR}"
 }

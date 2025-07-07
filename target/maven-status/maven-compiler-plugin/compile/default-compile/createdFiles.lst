@@ -37,5 +37,4 @@ com/ycbd/demo/controller/PluginController.class
 com/ycbd/demo/plugin/PluginEngine.class
 com/ycbd/demo/utils/Tools.class
 com/ycbd/demo/aspect/AuthenticationAspect.class
-com/ycbd/demo/utils/MapUtils.class
 com/ycbd/demo/config/AppProperties.class

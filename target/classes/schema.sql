@@ -13,6 +13,39 @@ CREATE TABLE sys_user (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- 角色表
+DROP TABLE IF EXISTS sys_role;
+CREATE TABLE sys_role (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  role_name VARCHAR(50) NOT NULL,
+  role_code VARCHAR(50) NOT NULL UNIQUE,
+  description VARCHAR(200),
+  status TINYINT DEFAULT 1,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 用户角色关联表
+DROP TABLE IF EXISTS sys_user_role;
+CREATE TABLE sys_user_role (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
+  role_id INT NOT NULL,
+  UNIQUE KEY uk_user_role (user_id, role_id),
+  FOREIGN KEY (user_id) REFERENCES sys_user(id),
+  FOREIGN KEY (role_id) REFERENCES sys_role(id)
+);
+
+-- 组织机构表
+DROP TABLE IF EXISTS sys_org;
+CREATE TABLE sys_org (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  org_name VARCHAR(100) NOT NULL,
+  org_code VARCHAR(50) NOT NULL UNIQUE,
+  parent_id INT,
+  status TINYINT DEFAULT 1,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- ========= 元数据表 =========
 DROP TABLE IF EXISTS table_attribute;
 CREATE TABLE table_attribute (

@@ -6,11 +6,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.DependsOn;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.view.RedirectView;
 
 import com.ycbd.demo.plugin.IPlugin;
 import com.ycbd.demo.plugin.PluginEngine;
@@ -21,6 +24,7 @@ import com.ycbd.demo.utils.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.annotation.PostConstruct;
+import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 /**
  * 测试控制器 此控制器在启动时自动加载TestService插件，并将其API请求转发到插件
@@ -73,35 +77,26 @@ public class TestController {
     }
 
     @PostMapping("/run")
-    @Operation(summary = "运行测试脚本", description = "解析并执行指定的测试脚本文件")
-    public ApiResponse<?> runTest(
+    @Operation(summary = "运行测试脚本(已废弃)", description = "此端点已废弃，请使用/api/test/execute代替")
+    public ResponseEntity<String> runTest(
             @RequestParam String scriptPath,
             @RequestParam(required = false, defaultValue = "test_results") String resultDir,
             @RequestParam(required = false, defaultValue = "false") boolean useCurrentDir) {
 
-        try {
-            // 从PluginEngine获取插件
-            IPlugin plugin = pluginEngine.getPlugin("TestService");
-            if (plugin == null) {
-                // 尝试重新加载插件
-                String result = pluginEngine.loadPlugin("TestService");
-                if (!result.contains("加载成功")) {
-                    return ApiResponse.failed("测试服务插件未加载或初始化失败: " + result);
-                }
-                plugin = pluginEngine.getPlugin("TestService");
-                if (plugin == null) {
-                    return ApiResponse.failed("测试服务插件加载后仍无法获取");
-                }
-            }
-
-            // 调用插件的runTest方法，真正执行脚本
-            com.ycbd.demo.plugin.TestServicePlugin testServicePlugin = (com.ycbd.demo.plugin.TestServicePlugin) plugin;
-            return testServicePlugin.getController().runTest(scriptPath, resultDir, useCurrentDir);
-
-        } catch (Exception e) {
-            logger.error("执行测试脚本失败", e);
-            return ApiResponse.failed("执行测试脚本失败: " + e.getMessage());
+        logger.warn("使用了已废弃的/api/test/run端点，请改用/api/test/execute");
+        
+        // 构建重定向URL
+        String redirectUrl = "/api/test/execute?scriptPath=" + scriptPath;
+        if (resultDir != null) {
+            redirectUrl += "&resultDir=" + resultDir;
         }
+        redirectUrl += "&useCurrentDir=" + useCurrentDir;
+        
+        // 返回重定向响应
+        return ResponseEntity
+            .status(HttpStatus.MOVED_PERMANENTLY)
+            .header("Location", redirectUrl)
+            .body("此端点已废弃，请使用/api/test/execute代替。正在重定向...");
     }
 
     @PostMapping("/command")
