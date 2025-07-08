@@ -58,7 +58,7 @@ public class CommonService {
         List<Map<String, Object>> items = baseService.queryList(targetTable, pageIndex, pageSize, columns, queryParams,
                 "", sortByAndType, null);
         int total = baseService.count(targetTable, queryParams, "");
-        Map<String, Object> data = new HashMap<>();
+        Map<String, Object> data = MapUtil.newHashMap();
         data.put("items", items);
         data.put("total", total);
         return ApiResponse.success(data);
@@ -81,7 +81,7 @@ public class CommonService {
 
         if (isUpdate) {
             // 自动补全所有 NOT NULL 字段，防止部分字段未传导致数据库报错
-            Map<String, Object> old = baseService.getOne(targetTable, Map.of("id", id));
+            Map<String, Object> old = baseService.getOne(targetTable, MapUtil.of("id", id));
             if (old != null) {
                 for (Map.Entry<String, Object> entry : old.entrySet()) {
                     String key = entry.getKey();
@@ -91,12 +91,12 @@ public class CommonService {
                 }
             }
             baseService.update(targetTable, data, id);
-            Map<String, Object> result = new HashMap<>();
+            Map<String, Object> result = MapUtil.newHashMap();
             result.put("id", id);
             return ApiResponse.success(result);
         } else {
             long newId = baseService.save(targetTable, data);
-            Map<String, Object> result = new HashMap<>();
+            Map<String, Object> result = MapUtil.newHashMap();
             result.put("id", newId);
             return ApiResponse.success(result);
         }
@@ -158,7 +158,7 @@ public class CommonService {
 
         try {
             // 从数据库查询用户信息
-            Map<String, Object> queryParams = new HashMap<>();
+            Map<String, Object> queryParams = MapUtil.newHashMap();
             queryParams.put("username", username);
             Map<String, Object> user = baseService.getOne("sys_user", queryParams);
 
@@ -185,7 +185,7 @@ public class CommonService {
             List<Map<String, Object>> roleList = baseService.queryList(
                     "sys_user_role ur", // 只写主表
                     0, 100, "r.role_code",
-                    Map.of("ur.user_id", user.get("id")),
+                    MapUtil.of("ur.user_id", user.get("id")),
                     "JOIN sys_role r ON ur.role_id = r.id", // join 语句单独传
                     null, null);
 
@@ -198,14 +198,14 @@ public class CommonService {
             Integer orgId = MapUtil.getInt(user, "org_id");
             String orgName = "";
             if (orgId != null && orgId > 0) {
-                Map<String, Object> org = baseService.getOne("sys_org", Map.of("id", orgId));
+                Map<String, Object> org = baseService.getOne("sys_org", MapUtil.of("id", orgId));
                 if (org != null) {
                     orgName = MapUtil.getStr(org, "org_name", "");
                 }
             }
 
             // 构建用户信息
-            Map<String, Object> userInfo = new HashMap<>();
+            Map<String, Object> userInfo = MapUtil.newHashMap();
             userInfo.put("id", user.get("id"));
             userInfo.put("userId", user.get("id")); // 兼容旧代码
             userInfo.put("username", username);
@@ -223,7 +223,7 @@ public class CommonService {
         } catch (Exception e) {
             logger.error("登录过程中发生错误", e);
             // 创建一个包含错误信息的Map
-            Map<String, Object> errorData = new HashMap<>();
+            Map<String, Object> errorData = MapUtil.newHashMap();
             errorData.put("error", "登录过程中发生错误，请稍后再试");
             errorData.put("errorDetail", e.getMessage());
             return ApiResponse.of(ResultCode.INTERNAL_ERROR, errorData);
@@ -255,9 +255,9 @@ public class CommonService {
     public void validateAttributes(String table, Map<String, Object> data) {
         List<Map<String, Object>> attrs = baseService.getColumnAttributes(table, null);
         for (Map<String, Object> attr : attrs) {
-            String field = (String) attr.get("name");
-            boolean required = Boolean.TRUE.equals(attr.get("IsRequired")) || "1".equals(String.valueOf(attr.get("IsRequired")));
-            String dataType = (String) attr.get("fieldType");
+            String field = MapUtil.getStr(attr, "column_name");
+            boolean required = Boolean.TRUE.equals(attr.get("is_required")) || "1".equals(String.valueOf(attr.get("is_required")));
+            String dataType = MapUtil.getStr(attr, "field_type");
             Integer maxLength = attr.get("len") != null ? Integer.parseInt(attr.get("len").toString()) : null;
 
             Object value = data.get(field);
