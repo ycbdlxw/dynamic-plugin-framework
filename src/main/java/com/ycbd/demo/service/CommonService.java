@@ -178,15 +178,16 @@ public class CommonService {
             String hashedPassword = MapUtil.getStr(user, "password");
             if (StrUtil.isEmpty(hashedPassword) || !BCrypt.checkpw(password, hashedPassword)) {
                 logger.warn("密码验证失败: {}", username);
-                return ApiResponse.failed("用户名或密码错误");
+                return ApiResponse.failed("密码错误");
             }
 
             // 获取用户角色
             List<Map<String, Object>> roleList = baseService.queryList(
-                    "sys_user_role ur JOIN sys_role r ON ur.role_id = r.id",
+                    "sys_user_role ur", // 只写主表
                     0, 100, "r.role_code",
                     Map.of("ur.user_id", user.get("id")),
-                    null, null, null);
+                    "JOIN sys_role r ON ur.role_id = r.id", // join 语句单独传
+                    null, null);
 
             List<String> roles = roleList.stream()
                     .map(r -> MapUtil.getStr(r, "role_code"))
@@ -211,9 +212,7 @@ public class CommonService {
             userInfo.put("real_name", user.get("real_name"));
             userInfo.put("status", status);
             userInfo.put("org_id", orgId);
-            userInfo.put("orgId", orgId); // 兼容旧代码
             userInfo.put("org_name", orgName);
-            userInfo.put("orgName", orgName); // 兼容旧代码
             userInfo.put("roles", roles.isEmpty() ? Arrays.asList("USER") : roles);
 
             // 生成JWT令牌

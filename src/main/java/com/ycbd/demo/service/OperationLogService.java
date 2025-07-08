@@ -3,6 +3,8 @@ package com.ycbd.demo.service;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -28,6 +30,7 @@ public class OperationLogService {
     private CommonService commonService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
+    private static final Logger log = LoggerFactory.getLogger(OperationLogService.class);
 
     /**
      * 记录操作日志
@@ -46,8 +49,28 @@ public class OperationLogService {
         try {
             Map<String, Object> data = new HashMap<>();
             if (userMap != null) {
-                data.put("user_id", userMap.get("userId"));
+                Object userId = userMap.get("userId");
+                // 确保userId为整数类型
+                if (userId != null) {
+                    try {
+                        if (userId instanceof String) {
+                            // 如果是字符串，尝试转换为整数
+                            data.put("user_id", Integer.parseInt((String) userId));
+                        } else {
+                            data.put("user_id", userId);
+                        }
+                    } catch (NumberFormatException e) {
+                        // 转换失败时设置为null
+                        data.put("user_id", null);
+                    }
+                } else {
+                    data.put("user_id", null);
+                }
                 data.put("username", userMap.get("username"));
+            } else {
+                // 当userMap为null时，明确设置为null
+                data.put("user_id", -1);
+                data.put("username", "系统用户");
             }
             data.put("method", request.getMethod());
             data.put("request_uri", request.getRequestURI());
@@ -71,11 +94,11 @@ public class OperationLogService {
                 data.put("response_body", respStr);
             }
             // 新增：记录当前时间戳
-            data.put("created_at", System.currentTimeMillis());
             commonService.saveData("system_log", data);
         } catch (Exception e) {
             // 日志记录失败不能影响主流程
             e.printStackTrace();
+            log.error("记录操作日志失败: {}", e.getMessage());
         }
     }
 }

@@ -6,7 +6,8 @@ public enum ResultCode {
     VALIDATE_FAILED(400, "参数检验失败"),
     UNAUTHORIZED(401, "暂未登录或token已经过期"),
     FORBIDDEN(403, "没有相关权限"),
-    INTERNAL_ERROR(500, "服务器内部错误");
+    INTERNAL_ERROR(500, "服务器内部错误"),
+    DATA_INTEGRITY_ERROR(500, "数据完整性错误");
 
     private final int code;
     private final String message;

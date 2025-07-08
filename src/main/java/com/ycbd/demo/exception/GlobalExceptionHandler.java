@@ -6,6 +6,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -34,11 +35,22 @@ public class GlobalExceptionHandler {
         return ApiResponse.failed(e.getMessage());
     }
 
-    @ExceptionHandler(value = DataIntegrityViolationException.class)
-    @ResponseBody
-    public ApiResponse<Object> handleDataIntegrityViolation(DataIntegrityViolationException e) {
-        logger.warn("数据库约束异常: {}", e.getMostSpecificCause().getMessage());
-        return ApiResponse.failed("数据完整性错误: " + e.getMostSpecificCause().getMessage());
+    @SuppressWarnings("rawtypes")
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ApiResponse> handleDataIntegrityViolationException(DataIntegrityViolationException ex) {
+        String message = ex.getMessage();
+        // 简单解析字段名（可根据实际数据库和异常格式调整）
+        String field = "";
+        if (message != null && message.contains("for column")) {
+            int idx = message.indexOf("for column");
+            field = message.substring(idx);
+        }
+        String userMsg = "数据完整性错误";
+        if (!field.isEmpty()) {
+            userMsg += "，出错字段：" + field;
+        }
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.failed(userMsg));
     }
 
     @ExceptionHandler(value = MalformedInputException.class)

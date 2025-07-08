@@ -1,6 +1,6 @@
 -- 添加初始用户（密码：ycbd1234）
 INSERT INTO sys_user (username, password, real_name, email, status) VALUES
-('admin', '$2a$10$D5H.EIucZ9tiKDho4n5W9.0lJLW6L1OwNB6Ua.NPxOB3XX/0CcQye', '管理员', 'admin@example.com', 1);
+('admin', '$2a$10$82G8gQiqZ1sOhmi1z.v0aOwVzP1A02GfUtcUCTObwKMEQYwn/kT/G', '管理员', 'admin@example.com', 1);
 
 -- 表属性配置
 INSERT INTO table_attribute (db_table, table_name, main_key, sort, module, group_by, is_loading, is_all_select, is_row_operation_flag, is_operation_flag, table_procedure, sub_tables, table_key, parameter_type, alias_name, page_title, role_flag, join_str, defin_columns) VALUES
@@ -33,11 +33,13 @@ INSERT INTO security_config (type, pattern, is_active) VALUES
 ('WHITELIST', '/h2-console/**', TRUE),
 ('WHITELIST', '/swagger-ui.html', TRUE),
 ('WHITELIST', '/swagger-ui/**', TRUE),
+('WHITELIST', '/api/test/execute', TRUE),
 ('WHITELIST', '/api-docs/**', TRUE);
 
--- 命令执行器插件配置
+-- 插件配置表初始化
 INSERT INTO plugin_config (plugin_name, class_name, description, is_active) VALUES
-('CommandExecutor', 'com.ycbd.demo.plugin.commandexecutor.CommandExecutorPlugin', '跨平台命令行执行插件', TRUE);
+  ('TestService', 'com.ycbd.demo.plugin.TestServicePlugin', '测试服务插件', 1),
+  ('CommandExecutor', 'com.ycbd.demo.plugin.commandexecutor.CommandExecutorPlugin', '命令执行插件', 1);
 
 -- 添加 system_log 表的表属性配置
 INSERT INTO table_attribute (db_table, table_name, main_key, sort, module, group_by, is_loading, is_all_select, is_row_operation_flag, is_operation_flag, table_procedure, sub_tables, table_key, parameter_type, alias_name, page_title, role_flag, join_str, defin_columns) VALUES
@@ -55,4 +57,22 @@ INSERT INTO column_attribute (db_table_name, column_name, page_name, is_show_in_
 ('system_log', 'status', '状态码', TRUE, TRUE, FALSE, FALSE, 8),
 ('system_log', 'response_body', '响应内容', FALSE, FALSE, FALSE, FALSE, 9),
 ('system_log', 'duration_ms', '执行时间(毫秒)', TRUE, TRUE, FALSE, FALSE, 10),
-('system_log', 'created_at', '创建时间', TRUE, FALSE, FALSE, FALSE, 11); 
+('system_log', 'created_at', '创建时间', TRUE, FALSE, FALSE, FALSE, 11);
+
+-- 初始化角色数据
+INSERT INTO sys_role (role_name, role_code, description, status) VALUES
+('管理员', 'ADMIN', '系统管理员，拥有所有权限', 1),
+('普通用户', 'USER', '普通用户，拥有基本权限', 1),
+('访客', 'GUEST', '访客，仅有查看权限', 1);
+
+-- 为管理员用户分配角色
+INSERT INTO sys_user_role (user_id, role_id) VALUES
+(1, 1);  -- admin用户关联管理员角色
+
+-- 初始化组织机构数据
+INSERT INTO sys_org (org_name, org_code, parent_id, status) VALUES
+('总公司', 'HQ', NULL, 1),
+('技术部', 'TECH', 1, 1),
+('市场部', 'MARKET', 1, 1),
+('财务部', 'FINANCE', 1, 1);
+
