@@ -51,7 +51,13 @@ public class SqlWhereBuilder {
                     sqlBuilder.append(logicalOperator);
                 }
 
-                String columnName = table + ".`" + key + "`";
+                // 优化：如果key包含点（如ur.user_id），直接用key，否则拼接table名
+                String columnName;
+                if (key.contains(".")) {
+                    columnName = key;
+                } else {
+                    columnName = table + "." + key;
+                }
                 String queryType = MapUtil.getStr(attribute, "queryType", "eq");
                 int columnType = MapUtil.getInt(attribute, "columnType", 1); // 默认为字符串类型
 
