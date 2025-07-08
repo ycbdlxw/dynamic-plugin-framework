@@ -2,6 +2,7 @@
 /Users/ycbd/github_project/dynamic-plugin-framework/src/main/java/com/ycbd/demo/controller/CommonController.java
 /Users/ycbd/github_project/dynamic-plugin-framework/src/main/java/com/ycbd/demo/aspect/AuthenticationAspect.java
 /Users/ycbd/github_project/dynamic-plugin-framework/src/main/java/com/ycbd/demo/service/MetaService.java
+/Users/ycbd/github_project/dynamic-plugin-framework/src/main/java/com/ycbd/demo/plugin/TestVerificationService.java
 /Users/ycbd/github_project/dynamic-plugin-framework/src/main/java/com/ycbd/demo/plugin/IPlugin.java
 /Users/ycbd/github_project/dynamic-plugin-framework/src/main/java/com/ycbd/demo/utils/SqlWhereBuilder.java
 /Users/ycbd/github_project/dynamic-plugin-framework/src/main/java/com/ycbd/demo/plugin/commandexecutor/CommandExecutorPlugin.java

@@ -1,5 +1,6 @@
 package com.ycbd.demo.controller;
 
+import java.util.List;
 import java.util.Map;
 
 import org.slf4j.Logger;
@@ -25,6 +26,8 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.annotation.PostConstruct;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
+import com.ycbd.demo.plugin.TestServicePlugin;
+import com.ycbd.demo.plugin.TestVerificationService;
 
 /**
  * 测试控制器 此控制器在启动时自动加载TestService插件，并将其API请求转发到插件
@@ -42,6 +45,9 @@ public class TestController {
 
     // 命令执行服务，优先使用插件提供的，如果插件未加载则使用本地实例
     private CommandExecutionService commandService;
+
+    @Autowired
+    private TestVerificationService verificationService;
 
     @PostConstruct
     public void init() {
@@ -76,27 +82,49 @@ public class TestController {
         }
     }
 
-    @PostMapping("/run")
-    @Operation(summary = "运行测试脚本(已废弃)", description = "此端点已废弃，请使用/api/test/execute代替")
-    public ResponseEntity<String> runTest(
+    /**
+     * 执行测试脚本（新版API）
+     */
+    @PostMapping("/execute")
+    @Operation(summary = "执行测试脚本", description = "执行指定路径的测试脚本并返回结果")
+    public ApiResponse<?> executeScript(
             @RequestParam String scriptPath,
-            @RequestParam(required = false, defaultValue = "test_results") String resultDir,
+            @RequestParam(required = false, defaultValue = "src/main/resources/test/test_results") String resultDir,
             @RequestParam(required = false, defaultValue = "false") boolean useCurrentDir) {
-
-        logger.warn("使用了已废弃的/api/test/run端点，请改用/api/test/execute");
         
-        // 构建重定向URL
-        String redirectUrl = "/api/test/execute?scriptPath=" + scriptPath;
-        if (resultDir != null) {
-            redirectUrl += "&resultDir=" + resultDir;
+        // 获取TestService插件
+        IPlugin plugin = pluginEngine.getPlugin("TestService");
+        if (plugin == null || !(plugin instanceof TestServicePlugin)) {
+            return ApiResponse.failed("TestService插件未加载或不可用");
         }
-        redirectUrl += "&useCurrentDir=" + useCurrentDir;
         
-        // 返回重定向响应
-        return ResponseEntity
-            .status(HttpStatus.MOVED_PERMANENTLY)
-            .header("Location", redirectUrl)
-            .body("此端点已废弃，请使用/api/test/execute代替。正在重定向...");
+        TestServicePlugin testPlugin = (TestServicePlugin) plugin;
+        if (!testPlugin.isInitialized()) {
+            return ApiResponse.failed("TestService插件未初始化");
+        }
+        
+        // 调用插件的execute方法
+        return testPlugin.getController().executeScript(scriptPath, resultDir, useCurrentDir);
+    }
+
+    /**
+     * 执行测试脚本（旧版API，已废弃）
+     */
+    @PostMapping("/run")
+    @Deprecated
+    @Operation(summary = "执行测试脚本（已废弃）", description = "此方法已废弃，请使用/execute")
+    public Object runScript(
+            @RequestParam String scriptPath,
+            @RequestParam(required = false, defaultValue = "src/main/resources/test/test_results") String resultDir,
+            @RequestParam(required = false, defaultValue = "false") boolean useCurrentDir,
+            RedirectAttributes attributes) {
+        
+        // 重定向到新的API
+        attributes.addAttribute("scriptPath", scriptPath);
+        attributes.addAttribute("resultDir", resultDir);
+        attributes.addAttribute("useCurrentDir", useCurrentDir);
+        
+        return new RedirectView("/api/test/execute");
     }
 
     @PostMapping("/command")
@@ -120,6 +148,25 @@ public class TestController {
         } catch (Exception e) {
             logger.error("执行命令失败", e);
             return ApiResponse.failed("执行命令失败: " + e.getMessage());
+        }
+    }
+
+    /** 完整验证：报告+数据库 */
+    @PostMapping("/verify")
+    @Operation(summary = "验证测试结果", description = "检查报告目录与数据库状态")
+    public ApiResponse<Object> verifyAll(@RequestParam(required = false, defaultValue = "src/main/resources/test/test_results") String resultDir) {
+        List<String> reportIssues = verificationService.verifyReports(resultDir);
+        List<String> dbIssues = verificationService.verifyDatabase();
+
+        boolean success = reportIssues.isEmpty() && dbIssues.isEmpty();
+        Map<String, Object> resp = new java.util.HashMap<>();
+        resp.put("reportIssues", reportIssues);
+        resp.put("dbIssues", dbIssues);
+
+        if (success) {
+            return ApiResponse.success(resp);
+        } else {
+            return ApiResponse.failed("ReportIssues=" + reportIssues + "; DbIssues=" + dbIssues);
         }
     }
 }

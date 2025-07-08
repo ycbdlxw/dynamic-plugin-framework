@@ -8,7 +8,7 @@ set -euo pipefail
 API_BASE="http://localhost:8080"
 SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 CURL_FILE="${SCRIPT_DIR}/test_user_crud.curl"
-RESULT_DIR="${SCRIPT_DIR}/test_results"
+RESULT_DIR="src/main/resources/test/test_results"
 
 # 确保结果目录存在
 mkdir -p "${RESULT_DIR}"

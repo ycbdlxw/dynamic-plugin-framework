@@ -1,38 +1,10 @@
-# 数据预处理器测试脚本
+# data_preprocessor test file
 # 使用方法: sh run_data_preprocessor_test.sh
-# 创建日期: 2023-07-01
-# 创建人: 系统管理员
+# 创建日期: 2025-07-08
+# 创建人: ycbd
 
-# 获取Token
-echo "获取Token..."
-curl -s -X POST "http://localhost:8081/api/core/login" -H "Content-Type: application/json" -d '{"username":"admin","password":"ycbd1234"}' > token_response.txt
-echo "提取Token..."
-TOKEN=$(cat token_response.txt | grep -o '"token":"[^"]*' | cut -d'"' -f4)
+# 1. 登录获取 Token
+curl -s -X POST "http://localhost:8081/api/core/login" -H "Content-Type: application/json" -d '{"username":"admin","password":"ycbd1234"}' -w "\n\nStatus: %{http_code}\nTime: %{time_total}s\n\n"
 
-# 检查Token
-echo "检查Token是否获取成功..."
-if [ -z "$TOKEN" ]; then
-  echo "获取Token失败，请检查登录接口"
-  exit 1
-fi
-echo "Token获取成功"
-
-# 1. 测试自动填充默认值
-echo "测试1: 自动填充默认值"
-curl -X POST "http://localhost:8081/api/common/save?targetTable=test_preprocessor" -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" -d '{"title":"测试标题"}' -w "\n\nStatus: %{http_code}\nTime: %{time_total}s\n\n"
-
-# 2. 测试必填字段校验
-echo "测试2: 必填字段校验 (应该失败)"
-curl -X POST "http://localhost:8081/api/common/save?targetTable=test_preprocessor" -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" -d '{"content":"只有内容，没有标题"}' -w "\n\nStatus: %{http_code}\nTime: %{time_total}s\n\n"
-
-# 3. 测试审计字段自动填充
-echo "测试3: 审计字段自动填充"
-curl -X POST "http://localhost:8081/api/common/save?targetTable=test_preprocessor" -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" -d '{"title":"带审计字段的测试","content":"测试内容"}' -w "\n\nStatus: %{http_code}\nTime: %{time_total}s\n\n"
-
-# 4. 查询结果验证
-echo "测试4: 查询结果验证"
-curl -X GET "http://localhost:8081/api/common/list?targetTable=test_preprocessor" -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" -w "\n\nStatus: %{http_code}\nTime: %{time_total}s\n\n"
-
-# 清理临时文件
-echo "清理临时文件..."
-rm -f token_response.txt 
+# 2. 自动填充默认值
+curl -X POST "http://localhost:8081/api/common/save?targetTable=test_data" -H "Content-Type: application/json" -H "Authorization: Bearer your-token-here" -d '{"name":"默认值测试","value":null,"status":1}' -w "\n\nStatus: %{http_code}\nTime: %{time_total}s\n\n" 

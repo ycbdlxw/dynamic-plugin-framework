@@ -1,53 +1,10 @@
-# 过滤规则测试脚本
+# filter_rule test file
 # 使用方法: sh run_filter_rule_test.sh
-# 创建日期: 2023-07-01
-# 创建人: 系统管理员
+# 创建日期: 2025-07-08
+# 创建人: ycbd
 
-# 获取Token
-echo "获取Token..."
-curl -s -X POST "http://localhost:8081/api/core/login" -H "Content-Type: application/json" -d '{"username":"admin","password":"ycbd1234"}' > token_response.txt
-echo "提取Token..."
-TOKEN=$(cat token_response.txt | grep -o '"token":"[^"]*' | cut -d'"' -f4)
+# 1. 登录获取 Token
+curl -s -X POST "http://localhost:8081/api/core/login" -H "Content-Type: application/json" -d '{"username":"admin","password":"ycbd1234"}' -w "\n\nStatus: %{http_code}\nTime: %{time_total}s\n\n"
 
-# 检查Token
-echo "检查Token是否获取成功..."
-if [ -z "$TOKEN" ]; then
-  echo "获取Token失败，请检查登录接口"
-  exit 1
-fi
-echo "Token获取成功"
-
-# 1. 创建测试数据
-echo "测试1: 创建测试数据"
-curl -X POST "http://localhost:8081/api/common/save?targetTable=test_preprocessor" -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" -d '{"title":"用户1的数据","content":"测试内容","user_id":1}' -w "\n\nStatus: %{http_code}\nTime: %{time_total}s\n\n"
-
-# 2. 创建第二个用户
-echo "测试2: 创建第二个用户"
-curl -X POST "http://localhost:8081/api/common/save?targetTable=sys_user" -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" -d '{"username":"testuser2","password":"test1234","real_name":"测试用户2","email":"test2@example.com","status":1}' -w "\n\nStatus: %{http_code}\nTime: %{time_total}s\n\n"
-
-# 3. 使用第二个用户创建数据
-echo "测试3: 使用第二个用户创建数据"
-curl -s -X POST "http://localhost:8081/api/core/login" -H "Content-Type: application/json" -d '{"username":"testuser2","password":"test1234"}' > token2_response.txt
-echo "提取第二个用户Token..."
-TOKEN2=$(cat token2_response.txt | grep -o '"token":"[^"]*' | cut -d'"' -f4)
-
-# 检查第二个用户Token
-echo "检查第二个用户Token是否获取成功..."
-if [ -z "$TOKEN2" ]; then
-  echo "获取第二个用户Token失败，继续使用管理员Token"
-  TOKEN2=$TOKEN
-fi
-echo "使用第二个用户Token创建数据..."
-curl -X POST "http://localhost:8081/api/common/save?targetTable=test_preprocessor" -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN2" -d '{"title":"用户2的数据","content":"测试内容","user_id":2}' -w "\n\nStatus: %{http_code}\nTime: %{time_total}s\n\n"
-
-# 4. 查询所有数据（管理员）
-echo "测试4: 管理员查询所有数据"
-curl -X GET "http://localhost:8081/api/common/list?targetTable=test_preprocessor" -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" -w "\n\nStatus: %{http_code}\nTime: %{time_total}s\n\n"
-
-# 5. 查询数据（普通用户）
-echo "测试5: 普通用户查询数据"
-curl -X GET "http://localhost:8081/api/common/list?targetTable=test_preprocessor" -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN2" -w "\n\nStatus: %{http_code}\nTime: %{time_total}s\n\n"
-
-# 清理临时文件
-echo "清理临时文件..."
-rm -f token_response.txt token2_response.txt 
+# 2. 创建测试数据
+curl -X POST "http://localhost:8081/api/common/save?targetTable=test_filter" -H "Content-Type: application/json" -H "Authorization: Bearer your-token-here" -d '{"name":"filter1","value":1}' -w "\n\nStatus: %{http_code}\nTime: %{time_total}s\n\n" 

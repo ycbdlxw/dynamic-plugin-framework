@@ -22,6 +22,7 @@ com/ycbd/demo/plugin/commandexecutor/CommandExecutionService.class
 com/ycbd/demo/plugin/TestServicePlugin$TestServiceController.class
 com/ycbd/demo/config/AppProperties$Jwt.class
 com/ycbd/demo/service/DataPreprocessorService.class
+com/ycbd/demo/plugin/TestVerificationService.class
 com/ycbd/demo/plugin/TestServicePlugin.class
 com/ycbd/demo/exception/GlobalExceptionHandler.class
 com/ycbd/demo/plugin/IPlugin.class

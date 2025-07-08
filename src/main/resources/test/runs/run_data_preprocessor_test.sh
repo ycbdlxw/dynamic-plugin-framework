@@ -3,7 +3,7 @@
 # 设置基础变量
 API_BASE="http://localhost:8081"
 SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-RESULT_DIR="${SCRIPT_DIR}/test_results"
+RESULT_DIR="src/main/resources/test/test_results"
 LOG_DIR="./logs"
 
 # 创建结果目录
@@ -35,7 +35,7 @@ main() {
 
   # 执行数据预处理测试
   log "执行数据预处理测试"
-  curl -s -X POST "${API_BASE}/api/test/execute?scriptPath=${SCRIPT_DIR}/test_data_preprocessor.curl&resultDir=${RESULT_DIR}&useCurrentDir=true"
+  curl -s -X POST "${API_BASE}/api/test/execute/execute?scriptPath=${SCRIPT_DIR}/test_data_preprocessor.curl&resultDir=${RESULT_DIR}&useCurrentDir=true"
   
   log "数据预处理测试执行完成，结果保存在 ${RESULT_DIR}"
 }

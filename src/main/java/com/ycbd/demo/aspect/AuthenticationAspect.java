@@ -60,7 +60,8 @@ public class AuthenticationAspect {
             "/swagger-ui.html",
             "/swagger-ui/**",
             "/api-docs/**",
-            "/api/common/health"
+            "/api/common/health",
+            "/api/test/verify"
     ));
 
     @PostConstruct

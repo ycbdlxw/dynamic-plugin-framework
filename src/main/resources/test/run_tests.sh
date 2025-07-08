@@ -3,7 +3,7 @@
 # 设置基础变量
 API_BASE="http://localhost:8081"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-RESULT_DIR="${SCRIPT_DIR}/test_results"
+RESULT_DIR="src/main/resources/test/test_results"
 LOG_DIR="${SCRIPT_DIR}/logs"
 
 # 创建结果目录

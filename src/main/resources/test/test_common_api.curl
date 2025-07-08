@@ -1,20 +1,16 @@
-# CommonController API 测试文件
+# common_api test file
 # 使用方法: sh run_common_api_test.sh
+# 创建日期: 2025-07-08
+# 创建人: ycbd
 
-# 1. 健康检查测试
-curl -X GET "http://localhost:8081/api/common/health" -H "Content-Type: application/json" -w "\n\nStatus: %{http_code}\nTime: %{time_total}s\n\n"
+# 1. 登录获取 Token
+curl -s -X POST "http://localhost:8081/api/core/login" -H "Content-Type: application/json" -d '{"username":"admin","password":"ycbd1234"}' -w "\n\nStatus: %{http_code}\nTime: %{time_total}s\n\n"
 
-# 2. 获取列表测试 (需要认证)
-curl -X GET "http://localhost:8081/api/common/list?targetTable=sys_user&pageIndex=0&pageSize=10" -H "Content-Type: application/json" -H "Authorization: Bearer {{TOKEN}}" -w "\n\nStatus: %{http_code}\nTime: %{time_total}s\n\n"
+# 2. 健康检查
+curl -X GET "http://localhost:8081/api/common/health" -w "\n\nStatus: %{http_code}\nTime: %{time_total}s\n\n"
 
-# 3. 保存数据测试 (需要认证)
-curl -X POST "http://localhost:8081/api/common/save?targetTable=sys_user" -H "Content-Type: application/json" -H "Authorization: Bearer {{TOKEN}}" -d '{"username": "testuser","password": "password123","real_name": "Test User","email": "test@example.com","status": 1}' -w "\n\nStatus: %{http_code}\nTime: %{time_total}s\n\n"
+# 3. 获取用户列表
+curl -X GET "http://localhost:8081/api/common/list?targetTable=sys_user" -H "Content-Type: application/json" -H "Authorization: Bearer your-token-here" -w "\n\nStatus: %{http_code}\nTime: %{time_total}s\n\n"
 
-# 4. 更新数据测试 (需要认证)
-curl -X POST "http://localhost:8081/api/common/save?targetTable=sys_user" -H "Content-Type: application/json" -H "Authorization: Bearer {{TOKEN}}" -d '{"id": 2,"email": "updated@example.com","status": 0}' -w "\n\nStatus: %{http_code}\nTime: %{time_total}s\n\n"
-
-# 5. 删除数据测试 (需要认证)
-curl -X POST "http://localhost:8081/api/common/delete?targetTable=sys_user&id=2" -H "Content-Type: application/json" -H "Authorization: Bearer {{TOKEN}}" -w "\n\nStatus: %{http_code}\nTime: %{time_total}s\n\n"
-
-# 6. 未授权测试 (无token)
-curl -X GET "http://localhost:8081/api/common/list?targetTable=sys_user" -H "Content-Type: application/json" -w "\n\nStatus: %{http_code}\nTime: %{time_total}s\n\n" 
+# 4. 获取角色列表
+curl -X GET "http://localhost:8081/api/common/list?targetTable=sys_role" -H "Content-Type: application/json" -H "Authorization: Bearer your-token-here" -w "\n\nStatus: %{http_code}\nTime: %{time_total}s\n\n" 

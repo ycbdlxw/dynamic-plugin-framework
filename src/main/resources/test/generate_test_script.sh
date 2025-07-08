@@ -1,109 +1,146 @@
 #!/bin/bash
 
 # 测试脚本生成工具
-# 创建日期: 2023-07-01
-# 创建人: 系统管理员
+# 使用方法: ./generate_test_script.sh <模块名> <功能点>
+# 例如: ./generate_test_script.sh user login
 
 # 检查参数
 if [ $# -lt 2 ]; then
-    echo "用法: $0 <模块名> <功能点>"
-    echo "例如: $0 common api"
-    exit 1
+  echo "错误: 参数不足"
+  echo "使用方法: ./generate_test_script.sh <模块名> <功能点>"
+  echo "例如: ./generate_test_script.sh user login"
+  exit 1
 fi
 
-MODULE_NAME=$1
-FEATURE_NAME=$2
-CURRENT_DATE=$(date +"%Y-%m-%d")
+# 设置变量
+MODULE_NAME="$1"
+FEATURE_NAME="$2"
+CURRENT_DATE=$(date +%Y-%m-%d)
 CURRENT_USER=$(whoami)
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+TEST_FILE_NAME="test_${MODULE_NAME}_${FEATURE_NAME}.curl"
+TEST_FILE_PATH="${SCRIPT_DIR}/${TEST_FILE_NAME}"
+RUN_SCRIPT_NAME="run_${MODULE_NAME}_${FEATURE_NAME}_test.sh"
+RUN_SCRIPT_PATH="${SCRIPT_DIR}/runs/${RUN_SCRIPT_NAME}"
 
 # 创建目录
-mkdir -p runs
-mkdir -p test_results
+mkdir -p "${SCRIPT_DIR}/runs/logs"
+mkdir -p "${SCRIPT_DIR}/test_results"
 
-# 生成curl测试文件
-CURL_FILE="test_${MODULE_NAME}_${FEATURE_NAME}.curl"
-echo "生成curl测试文件: ${CURL_FILE}"
-
-cat > ${CURL_FILE} << EOF
-# ${MODULE_NAME^} ${FEATURE_NAME^} 测试文件
-# 使用方法: sh run_${MODULE_NAME}_${FEATURE_NAME}_test.sh
-# 创建日期: ${CURRENT_DATE}
-# 创建人: ${CURRENT_USER}
-
-# 1. 测试用例示例
-echo "执行测试用例示例..."
-curl -X GET "http://\${TEST_HOST}/api/${MODULE_NAME}/endpoint" -H "Content-Type: application/json" -H "Authorization: Bearer \${TOKEN}" -w "\n\nStatus: %{http_code}\nTime: %{time_total}s\n\n"
-
-# 2. 另一个测试用例示例
-echo "执行另一个测试用例示例..."
-curl -X POST "http://\${TEST_HOST}/api/${MODULE_NAME}/endpoint" -H "Content-Type: application/json" -H "Authorization: Bearer \${TOKEN}" -d '{"key":"value"}' -w "\n\nStatus: %{http_code}\nTime: %{time_total}s\n\n"
-EOF
-
-# 生成执行脚本
-SH_FILE="runs/run_${MODULE_NAME}_${FEATURE_NAME}_test.sh"
-echo "生成执行脚本: ${SH_FILE}"
-
-cat > ${SH_FILE} << EOF
-#!/bin/bash
-
-# ${MODULE_NAME^} ${FEATURE_NAME^} 测试执行脚本
-# 创建日期: ${CURRENT_DATE}
-# 创建人: ${CURRENT_USER}
-
-# 设置颜色输出
-GREEN='\033[0;32m'
-RED='\033[0;31m'
-YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
-
-# 设置测试环境变量
-export TEST_HOST="localhost:8080"
-export TEST_OUTPUT_DIR="../test_results"
-export TEST_TIMESTAMP=\$(date +"%Y%m%d_%H%M%S")
-export TEST_RESULT_FILE="\${TEST_OUTPUT_DIR}/\${TEST_TIMESTAMP}_${MODULE_NAME}_${FEATURE_NAME}_result.txt"
-
-# 创建结果目录
-mkdir -p \${TEST_OUTPUT_DIR}
-
-# 打印测试信息
-echo -e "\${YELLOW}开始执行 ${MODULE_NAME^} ${FEATURE_NAME^} 测试\${NC}"
-echo -e "\${YELLOW}测试时间: \$(date)\${NC}"
-echo -e "\${YELLOW}测试结果将保存到: \${TEST_RESULT_FILE}\${NC}\n"
-
-# 获取认证令牌
-echo -e "\${YELLOW}获取认证令牌...\${NC}"
-TOKEN_RESPONSE=\$(curl -s -X POST "http://\${TEST_HOST}/api/core/login" \\
-  -H "Content-Type: application/json" \\
-  -d '{"username":"admin","password":"password"}')
-
-TOKEN=\$(echo \$TOKEN_RESPONSE | grep -o '"token":"[^"]*' | sed 's/"token":"//')
-
-if [ -z "\$TOKEN" ]; then
-  echo -e "\${RED}无法获取认证令牌，测试将继续但认证相关测试可能失败\${NC}"
-else
-  echo -e "\${GREEN}成功获取认证令牌\${NC}"
+# 检查文件是否已存在
+if [ -f "$TEST_FILE_PATH" ]; then
+  echo "警告: 测试文件已存在: $TEST_FILE_PATH"
+  read -p "是否覆盖? (y/n): " OVERWRITE
+  if [ "$OVERWRITE" != "y" ]; then
+    echo "操作已取消"
+    exit 0
+  fi
 fi
 
-# 开始记录测试结果
-echo "${MODULE_NAME^} ${FEATURE_NAME^} 测试结果" > \${TEST_RESULT_FILE}
-echo "测试时间: \$(date)" >> \${TEST_RESULT_FILE}
-echo "----------------------------------------" >> \${TEST_RESULT_FILE}
+if [ -f "$RUN_SCRIPT_PATH" ]; then
+  echo "警告: 执行脚本已存在: $RUN_SCRIPT_PATH"
+  read -p "是否覆盖? (y/n): " OVERWRITE
+  if [ "$OVERWRITE" != "y" ]; then
+    echo "操作已取消"
+    exit 0
+  fi
+fi
 
-# 执行测试用例
-source ../test_${MODULE_NAME}_${FEATURE_NAME}.curl
+# 创建测试文件
+cat > "$TEST_FILE_PATH" << EOF
+# ${MODULE_NAME} ${FEATURE_NAME} 测试文件
+# 使用方法: sh ${RUN_SCRIPT_NAME}
+# 创建日期: ${CURRENT_DATE}
+# 创建人: ${CURRENT_USER}
 
-# 测试总结
-echo -e "\n\${YELLOW}测试完成！\${NC}"
-echo -e "\${YELLOW}测试结果已保存到: \${TEST_RESULT_FILE}\${NC}"
+# 获取Token
+echo "获取管理员Token..."
+curl -s -X POST "http://localhost:8081/api/core/login" -H "Content-Type: application/json" -d '{"username":"admin","password":"ycbd1234"}' > token_response.txt
+TOKEN=$(cat token_response.txt | grep -o '"token":"[^"]*' | cut -d'"' -f4)
+
+# 检查Token
+echo "检查Token是否获取成功..."
+if [ -z "$TOKEN" ]; then
+  echo "获取Token失败，请检查登录接口"
+  exit 1
+fi
+echo "Token获取成功"
+
+# 1. 测试示例
+echo "测试1: 示例测试"
+curl -X GET "http://localhost:8081/api/common/health" -H "Authorization: Bearer $TOKEN" -w "\n\nStatus: %{http_code}\nTime: %{time_total}s\n\n"
+
+# 2. 测试示例2
+echo "测试2: 示例测试2"
+curl -X GET "http://localhost:8081/api/common/health" -H "Authorization: Bearer $TOKEN" -w "\n\nStatus: %{http_code}\nTime: %{time_total}s\n\n"
+
+# 清理临时文件
+rm -f token_response.txt
+EOF
+
+# 创建执行脚本
+cat > "$RUN_SCRIPT_PATH" << EOF
+#!/bin/bash
+
+# 设置基础变量
+API_BASE="http://localhost:8081"
+SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+RESULT_DIR="${SCRIPT_DIR}/test_results"
+LOG_DIR="./logs"
+CURL_FILE="${SCRIPT_DIR}/${TEST_FILE_NAME}"
+
+# 创建结果目录
+mkdir -p "${RESULT_DIR}"
+mkdir -p "${LOG_DIR}"
+
+# 日志文件
+LOG_FILE="${LOG_DIR}/${MODULE_NAME}_${FEATURE_NAME}_test_$(date +%Y%m%d_%H%M%S).log"
+
+# 记录日志的函数
+log() {
+  echo "[$LOG_FILE]" "$1" | tee -a "$LOG_FILE"
+}
+
+# 主函数
+main() {
+  log "开始执行${MODULE_NAME} ${FEATURE_NAME}测试"
+  
+  # 健康检查
+  log "执行健康检查"
+  HEALTH_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${API_BASE}/api/common/health")
+  if [ "$HEALTH_STATUS" == "200" ]; then
+    log "健康检查通过: $HEALTH_STATUS"
+  else
+    log "健康检查失败: $HEALTH_STATUS"
+    log "服务可能未启动，退出测试"
+    exit 1
+  fi
+
+  # 检查测试脚本是否存在
+  if [ ! -f "$CURL_FILE" ]; then
+    log "测试脚本不存在: $CURL_FILE"
+    log "退出测试"
+    exit 1
+  fi
+
+  # 执行${MODULE_NAME} ${FEATURE_NAME}测试
+  log "执行${MODULE_NAME} ${FEATURE_NAME}测试"
+  curl -s -X POST "${API_BASE}/api/test/execute?scriptPath=${CURL_FILE}&resultDir=${RESULT_DIR}&useCurrentDir=true"
+  
+  log "${MODULE_NAME} ${FEATURE_NAME}测试执行完成，结果保存在 ${RESULT_DIR}"
+}
+
+# 执行主函数
+main
 EOF
 
 # 设置执行权限
-chmod +x ${SH_FILE}
+chmod +x "$TEST_FILE_PATH"
+chmod +x "$RUN_SCRIPT_PATH"
 
-echo "测试脚本生成完成！"
-echo "curl测试文件: ${CURL_FILE}"
-echo "执行脚本: ${SH_FILE}"
+echo "测试脚本创建成功:"
+echo "- 测试文件: $TEST_FILE_PATH"
+echo "- 执行脚本: $RUN_SCRIPT_PATH"
 echo ""
-echo "使用方法:"
-echo "1. 编辑 ${CURL_FILE} 添加实际测试用例"
-echo "2. 执行测试: cd runs && sh run_${MODULE_NAME}_${FEATURE_NAME}_test.sh" 
+echo "请编辑测试文件，添加实际的测试用例。"
+echo "执行测试: sh $RUN_SCRIPT_PATH" 

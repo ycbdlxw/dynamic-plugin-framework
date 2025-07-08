@@ -3,9 +3,9 @@
 # 设置基础变量
 API_BASE="http://localhost:8081"
 SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+RESULT_DIR="src/main/resources/test/test_results"
+LOG_DIR="./logs"
 CURL_FILE="${SCRIPT_DIR}/test_common_api.curl"
-RESULT_DIR="${SCRIPT_DIR}/test_results"
-LOG_DIR="${SCRIPT_DIR}/logs"
 
 # 创建结果目录
 mkdir -p "${RESULT_DIR}"
@@ -34,9 +34,16 @@ main() {
     exit 1
   fi
 
+  # 检查测试脚本是否存在
+  if [ ! -f "$CURL_FILE" ]; then
+    log "测试脚本不存在: $CURL_FILE"
+    log "退出测试"
+    exit 1
+  fi
+
   # 执行通用API测试
   log "执行通用API测试"
-  curl -s -X POST "${API_BASE}/api/test/execute?scriptPath=${CURL_FILE}&resultDir=${RESULT_DIR}&useCurrentDir=true"
+  curl -s -X POST "${API_BASE}/api/test/execute/execute?scriptPath=${CURL_FILE}&resultDir=${RESULT_DIR}&useCurrentDir=true"
   
   log "通用API测试执行完成，结果保存在 ${RESULT_DIR}"
 }

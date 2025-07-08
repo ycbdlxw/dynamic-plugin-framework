@@ -5,13 +5,14 @@ API_BASE="http://localhost:8081"
 SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 RESULT_DIR="src/main/resources/test/test_results"
 LOG_DIR="./logs"
+CURL_FILE="${SCRIPT_DIR}/test_basic.curl"
 
 # 创建结果目录
 mkdir -p "${RESULT_DIR}"
 mkdir -p "${LOG_DIR}"
 
 # 日志文件
-LOG_FILE="${LOG_DIR}/login_test_$(date +%Y%m%d_%H%M%S).log"
+LOG_FILE="${LOG_DIR}/basic_test_$(date +%Y%m%d_%H%M%S).log"
 
 # 记录日志的函数
 log() {
@@ -20,7 +21,7 @@ log() {
 
 # 主函数
 main() {
-  log "开始执行登录测试"
+  log "开始执行基础测试"
   
   # 健康检查
   log "执行健康检查"
@@ -33,11 +34,18 @@ main() {
     exit 1
   fi
 
-  # 执行登录测试
-  log "执行登录测试"
-  curl -s -X POST "${API_BASE}/api/test/execute?scriptPath=${SCRIPT_DIR}/test_login.curl&resultDir=${RESULT_DIR}&useCurrentDir=true"
+  # 检查测试脚本是否存在
+  if [ ! -f "$CURL_FILE" ]; then
+    log "测试脚本不存在: $CURL_FILE"
+    log "退出测试"
+    exit 1
+  fi
+
+  # 执行基础测试
+  log "执行基础测试"
+  curl -s -X POST "${API_BASE}/api/test/execute/execute?scriptPath=${CURL_FILE}&resultDir=${RESULT_DIR}&useCurrentDir=true"
   
-  log "登录测试执行完成，结果保存在 ${RESULT_DIR}"
+  log "基础测试执行完成，结果保存在 ${RESULT_DIR}"
 }
 
 # 执行主函数

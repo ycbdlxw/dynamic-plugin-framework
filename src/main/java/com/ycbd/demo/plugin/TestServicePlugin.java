@@ -12,6 +12,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
@@ -35,9 +36,12 @@ import com.ycbd.demo.utils.ApiResponse;
 public class TestServicePlugin implements IPlugin {
 
     private static final Logger logger = LoggerFactory.getLogger(TestServicePlugin.class);
-    private static final String DEFAULT_RESULT_DIR = "test_results";
+    private static final String DEFAULT_RESULT_DIR = "src/main/resources/test/test_results";
     private static final Pattern TOKEN_PATTERN = Pattern.compile("\"token\"\\s*:\\s*\"([^\"]+)\"|'token'\\s*:\\s*'([^']+)'");
     private static final ObjectMapper objectMapper = new ObjectMapper();
+
+    // 允许的命令前缀列表
+    private static final List<String> ALLOWED_PREFIXES = Arrays.asList("curl ", "echo ", "#");
 
     private TestServiceController controller;
     private boolean isInitialized = false;
@@ -75,78 +79,93 @@ public class TestServicePlugin implements IPlugin {
     @RequestMapping("/api/test/execute")
     public static class TestServiceController {
 
-        @PostMapping
-        public ApiResponse<Map<String, Object>> runTest(
+        /**
+         * 执行测试脚本
+         */
+        @PostMapping("/execute")
+        public ApiResponse<String> executeScript(
                 @RequestParam String scriptPath,
-                @RequestParam(required = false, defaultValue = "test_results") String resultDir,
+                @RequestParam(required = false, defaultValue = DEFAULT_RESULT_DIR) String resultDir,
                 @RequestParam(required = false, defaultValue = "false") boolean useCurrentDir) {
-
             try {
-                // 验证脚本路径
+                logger.info("[TEST] 脚本路径: {}", scriptPath);
+                logger.info("[TEST] 结果目录: {}", resultDir);
+                // 检查脚本路径
                 File scriptFile = new File(scriptPath);
                 if (!scriptFile.exists() || !scriptFile.isFile()) {
+                    logger.error("[TEST] 脚本文件不存在: {}", scriptPath);
                     return ApiResponse.failed("脚本文件不存在: " + scriptPath);
                 }
 
-                // 确定结果目录
-                String finalResultDir;
-                if (useCurrentDir) {
-                    // 使用脚本所在目录作为基准
-                    File scriptParent = scriptFile.getParentFile();
-                    finalResultDir = new File(scriptParent, resultDir).getAbsolutePath();
-                } else {
-                    // 使用绝对路径或相对于应用程序的路径
-                    finalResultDir = resultDir;
-                }
-
                 // 创建结果目录
-                File resultDirFile = new File(finalResultDir);
+                File resultDirFile = new File(resultDir);
                 if (!resultDirFile.exists()) {
-                    if (!resultDirFile.mkdirs()) {
-                        return ApiResponse.failed("无法创建结果目录: " + finalResultDir);
-                    }
+                    boolean mk = resultDirFile.mkdirs();
+                    logger.info("[TEST] 结果目录不存在，尝试创建: {}，结果: {}", resultDirFile.getAbsolutePath(), mk);
+                } else {
+                    logger.info("[TEST] 结果目录已存在: {}", resultDirFile.getAbsolutePath());
                 }
 
-                // 先检查脚本文件是否符合规范（仅注释或单行 curl）
-                String validationMsg = validateScript(scriptFile);
-                if (validationMsg != null) {
-                    return ApiResponse.failed(validationMsg);
+                // 验证脚本内容
+                String validationError = validateScript(scriptFile);
+                if (validationError != null) {
+                    logger.error("[TEST] 脚本校验失败: {}", validationError);
+                    return ApiResponse.failed(validationError);
                 }
 
                 // 生成结果文件名
-                SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd_HHmmss");
-                String resultFileName = sdf.format(new Date()) + "_result.txt";
+                String resultFileName = scriptFile.getName().replace(".curl", "") + "_"
+                        + new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date()) + ".txt";
                 File resultFile = new File(resultDirFile, resultFileName);
+                logger.info("[TEST] 结果文件路径: {}", resultFile.getAbsolutePath());
 
-                // 解析并执行脚本
-                List<CommandResult> results = executeScript(scriptFile, resultFile);
-
-                // 统计结果
-                int totalCommands = results.size();
-                int successCount = 0;
-                int failureCount = 0;
-
-                for (CommandResult result : results) {
-                    if (result.isSuccess()) {
-                        successCount++;
-                    } else {
-                        failureCount++;
+                // 逐行执行curl命令并收集结果
+                List<String> lines = Files.readAllLines(scriptFile.toPath(), StandardCharsets.UTF_8);
+                try (BufferedWriter writer = new BufferedWriter(new FileWriter(resultFile))) {
+                    writer.write("=== 脚本执行结果 ===\n");
+                    writer.write("脚本: " + scriptFile.getAbsolutePath() + "\n");
+                    writer.write("时间: " + new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date()) + "\n");
+                    int total = 0, success = 0, fail = 0;
+                    for (String raw : lines) {
+                        String line = raw.trim();
+                        if (line.isEmpty() || line.startsWith("#") || line.toLowerCase().startsWith("echo ")) continue;
+                        if (line.toLowerCase().startsWith("curl ")) {
+                            total++;
+                            writer.write("\n命令: " + line + "\n");
+                            logger.info("[TEST] 执行命令: {}", line);
+                            ProcessBuilder pb = new ProcessBuilder();
+                            pb.command("bash", "-c", line);
+                            Process proc = pb.start();
+                            StringBuilder out = new StringBuilder();
+                            try (BufferedReader r = new BufferedReader(new InputStreamReader(proc.getInputStream()))) {
+                                String l; while ((l = r.readLine()) != null) out.append(l).append("\n");
+                            }
+                            StringBuilder err = new StringBuilder();
+                            try (BufferedReader r = new BufferedReader(new InputStreamReader(proc.getErrorStream()))) {
+                                String l; while ((l = r.readLine()) != null) err.append(l).append("\n");
+                            }
+                            int code = proc.waitFor();
+                            writer.write("退出码: " + code + "\n");
+                            writer.write("输出:\n" + out);
+                            if (!err.isEmpty()) writer.write("错误:\n" + err);
+                            logger.info("[TEST] 命令退出码: {} 输出: {} 错误: {}", code, out, err);
+                            if (code == 0) success++; else fail++;
+                        } else {
+                            writer.write("非法命令行: " + line + "\n");
+                            logger.warn("[TEST] 非法命令行: {}", line);
+                        }
                     }
+                    writer.write("\n=== 执行总结 ===\n");
+                    writer.write("总命令数: " + total + "\n");
+                    writer.write("成功数: " + success + "\n");
+                    writer.write("失败数: " + fail + "\n");
+                    logger.info("[TEST] 执行总结: 总命令数:{} 成功:{} 失败:{}", total, success, fail);
                 }
-
-                // 构建响应
-                Map<String, Object> response = new HashMap<>();
-                response.put("totalCommands", totalCommands);
-                response.put("successCount", successCount);
-                response.put("failureCount", failureCount);
-                response.put("commandResults", results);
-                response.put("resultFilePath", resultFile.getAbsolutePath());
-
-                return ApiResponse.success(response);
-
+                logger.info("[TEST] 结果文件写入完成: {}", resultFile.getAbsolutePath());
+                return ApiResponse.success("脚本执行成功，结果保存在: " + resultFile.getAbsolutePath());
             } catch (Exception e) {
-                logger.error("执行测试脚本失败", e);
-                return ApiResponse.failed("执行测试脚本失败: " + e.getMessage());
+                logger.error("[TEST] 执行脚本失败", e);
+                return ApiResponse.failed("执行脚本失败: " + e.getMessage());
             }
         }
 
@@ -154,136 +173,86 @@ public class TestServicePlugin implements IPlugin {
          * 解析并执行脚本
          */
         private List<CommandResult> executeScript(File scriptFile, File resultFile) throws IOException {
-            List<CommandResult> results = new ArrayList<>();
+            // 读取脚本（保持对不同编码的兼容）
             List<String> lines;
             try {
                 lines = Files.readAllLines(scriptFile.toPath(), StandardCharsets.UTF_8);
             } catch (MalformedInputException mie) {
-                // 尝试使用系统默认编码作为降级方案
-                try {
-                    logger.warn("使用UTF-8读取脚本失败，尝试使用系统默认编码({})", Charset.defaultCharset());
-                    lines = Files.readAllLines(scriptFile.toPath(), Charset.defaultCharset());
-                } catch (Exception e) {
-                    // 最后降级为 ISO_8859_1，避免因编码问题彻底失败
-                    logger.warn("使用系统默认编码读取脚本失败，尝试使用ISO_8859_1", e);
-                    lines = Files.readAllLines(scriptFile.toPath(), StandardCharsets.ISO_8859_1);
-                }
+                lines = Files.readAllLines(scriptFile.toPath(), Charset.defaultCharset());
             }
 
-            StringBuilder currentCommand = new StringBuilder();
-            StringBuilder currentComment = new StringBuilder();
+            List<CommandResult> results = new ArrayList<>();
+            String currentDesc = "";
             String token = null;
 
-            try (BufferedWriter writer = new BufferedWriter(new FileWriter(resultFile))) {
-                for (String line : lines) {
-                    line = line.trim();
+            // 判断脚本是否需要token
+            boolean requiresToken = lines.stream().anyMatch(l -> l.contains("Bearer your-token-here") || l.contains("${TOKEN}") || l.contains("$TOKEN"));
+            boolean firstCurl = true;
 
-                    // 跳过空行
+            try (BufferedWriter writer = new BufferedWriter(new FileWriter(resultFile))) {
+                for (String raw : lines) {
+                    String line = raw.trim();
+
                     if (line.isEmpty()) {
                         continue;
                     }
 
-                    // 处理注释
+                    // 注释作为描述
                     if (line.startsWith("#")) {
-                        if (currentCommand.length() > 0) {
-                            // 如果已经有命令，则执行它
-                            CommandResult result = executeCommand(currentCommand.toString(), token);
-                            results.add(result);
-                            writeResult(writer, currentComment.toString(), result);
-                            // 提取token
-                            String extractedToken = extractToken(result.getResult());
-                            if (result.isSuccess() && extractedToken != null && !extractedToken.isEmpty()) {
-                                token = extractedToken;
-                                System.out.println("[TestServicePlugin] 提取到token: " + token);
-                                logger.info("[TestServicePlugin] 提取到token: {}", token);
-                            }
-                            currentCommand = new StringBuilder();
-                        }
-
-                        // 保存新的注释
-                        currentComment = new StringBuilder(line.substring(1).trim());
-                    } else {
-                        // 处理命令
-                        if (line.startsWith("curl")) {
-                            if (currentCommand.length() > 0) {
-                                // 如果已经有命令，则执行它
-                                logger.info("执行命令: {}", currentCommand.toString());
-                                CommandResult result = executeCommand(currentCommand.toString(), token);
-                                results.add(result);
-                                writeResult(writer, currentComment.toString(), result);
-
-                                // 首先检查命令结果中是否有token
-                                if (result.getToken() != null && !result.getToken().isEmpty()) {
-                                    token = result.getToken();
-                                    logger.info("[TestServicePlugin] 从命令结果中获取token: {}", token);
-                                } else {
-                                    // 尝试从响应中提取token
-                                    String extractedToken = extractToken(result.getResult());
-                                    if (result.isSuccess() && extractedToken != null && !extractedToken.isEmpty()) {
-                                        token = extractedToken;
-                                        logger.info("[TestServicePlugin] 从响应中提取token: {}", token);
-                                    } else {
-                                        logger.info("[TestServicePlugin] 未能从响应中提取token");
-                                    }
-                                }
-                                currentCommand = new StringBuilder();
-                            }
-                        }
-
-                        // 添加到当前命令
-                        if (currentCommand.length() > 0 && !line.endsWith("\\")) {
-                            currentCommand.append(" ");
-                        }
-
-                        // 移除行尾的反斜杠
-                        if (line.endsWith("\\")) {
-                            currentCommand.append(line.substring(0, line.length() - 1));
-                        } else {
-                            currentCommand.append(line);
-                        }
+                        currentDesc = line.substring(1).trim();
+                        continue;
                     }
+
+                    // echo 行仅打印，不执行
+                    if (line.toLowerCase().startsWith("echo ")) {
+                        continue;
+                    }
+
+                    // 只接受以 curl 开头的单行命令
+                    if (line.toLowerCase().startsWith("curl ")) {
+                        CommandResult result = executeCommand(line, token);
+                        results.add(result);
+                        writeResult(writer, currentDesc, result);
+
+                         // 如果脚本需要token且这是首条curl，则视为登录命令
+                         if (requiresToken && firstCurl) {
+                             firstCurl = false;
+
+                             // 提取 token
+                             if (result.getToken() != null && !result.getToken().isEmpty()) {
+                                 token = result.getToken();
+                             } else {
+                                 String extracted = extractToken(result.getResult());
+                                 if (result.isSuccess() && extracted != null && !extracted.isEmpty()) {
+                                     token = extracted;
+                                 }
+                             }
+
+                             // 登录失败，终止脚本
+                             if (token == null || token.isEmpty()) {
+                                 writer.write("登录失败，未获取token，终止脚本执行\n");
+                                 logger.error("登录失败，未获取token，终止脚本执行");
+                                 break;
+                             }
+                         } else {
+                            // 后续命令：若包含占位符则替换
+                            if (token != null && !token.isEmpty()) {
+                                // 已在 executeCommand 内替换 your-token-here
+                            }
+                        }
+
+                        continue;
+                    }
+
+                    // 其余行视为非法
+                    logger.error("脚本包含非法行: {}", line);
+                    throw new IOException("脚本包含非法行: " + line);
                 }
 
-                // 处理最后一个命令
-                if (currentCommand.length() > 0) {
-                    logger.info("执行最后一个命令: {}", currentCommand.toString());
-                    CommandResult result = executeCommand(currentCommand.toString(), token);
-                    results.add(result);
-                    writeResult(writer, currentComment.toString(), result);
-
-                    // 首先检查命令结果中是否有token
-                    if (result.getToken() != null && !result.getToken().isEmpty()) {
-                        token = result.getToken();
-                        logger.info("[TestServicePlugin] 从最后一个命令结果中获取token: {}", token);
-                    } else {
-                        // 尝试从响应中提取token
-                        String extractedToken = extractToken(result.getResult());
-                        if (result.isSuccess() && extractedToken != null && !extractedToken.isEmpty()) {
-                            token = extractedToken;
-                            logger.info("[TestServicePlugin] 从最后一个命令响应中提取token: {}", token);
-                        } else {
-                            // 仅当之前尚未成功获取token时才输出提示，避免干扰日志
-                            if (token == null) {
-                                logger.info("[TestServicePlugin] 未能从最后一个命令响应中提取token");
-                            } else {
-                                logger.debug("[TestServicePlugin] 最后一个命令未返回新的token，已忽略");
-                            }
-                        }
-                    }
-                    currentCommand = new StringBuilder();
-                }
-
-                // 写入总结
+                // 总结
                 writer.write("\n执行总结:\n");
                 writer.write("总命令数: " + results.size() + "\n");
-
-                int successCount = 0;
-                for (CommandResult result : results) {
-                    if (result.isSuccess()) {
-                        successCount++;
-                    }
-                }
-
+                long successCount = results.stream().filter(CommandResult::isSuccess).count();
                 writer.write("成功数: " + successCount + "\n");
                 writer.write("失败数: " + (results.size() - successCount) + "\n");
             }
@@ -311,6 +280,8 @@ public class TestServicePlugin implements IPlugin {
             } else {
                 logger.debug("未找到token，命令未修改: {}", command);
             }
+
+            // 不主动追加 Authorization 头，只在命令中显式存在占位符时进行替换
 
             try {
                 // 创建进程
@@ -350,20 +321,67 @@ public class TestServicePlugin implements IPlugin {
                     process.destroyForcibly();
                     result.setSuccess(false);
                     result.setErrorMessage("命令执行超时");
-                } else if (process.exitValue() != 0) {
-                    result.setSuccess(false);
-                    result.setErrorMessage(error.toString());
                 } else {
-                    result.setSuccess(true);
-                    result.setResult(output.toString());
+                    final String outStr = output.toString();
+
+                    // 默认成功条件：进程退出0 & HTTP 2xx & 业务 code==200
+                    boolean successFlag = true;
+
+                    // 提取 Status 行
+                    java.util.regex.Matcher m = java.util.regex.Pattern.compile("Status:\\s*(\\d{3})").matcher(outStr);
+                    if (m.find()) {
+                        int httpCode = Integer.parseInt(m.group(1));
+                        if (httpCode >= 300) {
+                            successFlag = false;
+                        }
+                    }
+
+                    // 提取业务 code 字段
+                    java.util.regex.Matcher m2 = java.util.regex.Pattern.compile("\"code\"\\s*:\\s*(\\d+)").matcher(outStr);
+                    if (m2.find()) {
+                        int bizCode = Integer.parseInt(m2.group(1));
+                        if (bizCode != 200) {
+                            successFlag = false;
+                        }
+                    }
+
+                    result.setSuccess(successFlag);
+                    result.setResult(outStr);
+
+                    // 如果失败，记录错误
+                    if (!successFlag) {
+                        result.setErrorMessage("请求返回非成功状态");
+                    }
 
                     // 检查是否是登录命令，如果是，尝试提取token
                     if (command.contains("login")) {
-                        String extractedToken = extractToken(output.toString());
+                        String extractedToken = extractToken(outStr);
                         if (extractedToken != null && !extractedToken.isEmpty()) {
                             logger.info("从登录命令中提取到token: {}", extractedToken);
-                            result.setToken(extractedToken); // 保存到结果中
+                            result.setToken(extractedToken);
                         }
+                    }
+                }
+
+                // 如果仍未获取到token，且命令包含输出重定向，则尝试从文件读取
+                if ((result.getToken() == null || result.getToken().isEmpty()) && command.contains(">")) {
+                    try {
+                        // 简单解析重定向文件名：取 '>' 之后的第一个非空字段
+                        String[] parts = command.split(">");
+                        if (parts.length > 1) {
+                            String redirectPart = parts[1].trim().split(" ")[0];
+                            java.io.File redirectFile = new java.io.File(redirectPart);
+                            if (redirectFile.exists() && redirectFile.isFile()) {
+                                String fileContent = new String(java.nio.file.Files.readAllBytes(redirectFile.toPath()));
+                                String fileToken = extractToken(fileContent);
+                                if (fileToken != null && !fileToken.isEmpty()) {
+                                    logger.info("从重定向文件({})中提取到token", redirectPart);
+                                    result.setToken(fileToken);
+                                }
+                            }
+                        }
+                    } catch (Exception e) {
+                        logger.warn("尝试从重定向文件提取token失败", e);
                     }
                 }
 
@@ -431,47 +449,79 @@ public class TestServicePlugin implements IPlugin {
         }
 
         /**
-         * 校验脚本文件是否符合测试规则： 1. 只允许空行、以 # 开头的注释、或以 curl 开头的单行命令。 2. 不允许出现反斜杠续行符或其它
-         * shell 语句。
-         *
-         * @param scriptFile 脚本文件
-         * @return 返回错误信息；若为 null 表示校验通过
+         * 验证脚本是否符合规范
          */
         private String validateScript(File scriptFile) {
-            List<String> lines;
             try {
-                lines = Files.readAllLines(scriptFile.toPath(), StandardCharsets.UTF_8);
-            } catch (Exception e) {
+                List<String> lines = Files.readAllLines(scriptFile.toPath());
+
+                for (int i = 0; i < lines.size(); i++) {
+                    String line = lines.get(i).trim();
+
+                    // 空行或注释行
+                    if (line.isEmpty() || line.startsWith("#")) {
+                        continue;
+                    }
+
+                    // echo命令行 - 不区分大小写，允许带引号
+                    if (line.toLowerCase().startsWith("echo ")) {
+                        continue;
+                    }
+
+                    // curl命令行 - 不区分大小写
+                    if (line.toLowerCase().startsWith("curl ")) {
+                        continue;
+                    }
+
+                    // rm命令行 - 允许清理临时文件
+                    if (line.toLowerCase().startsWith("rm ")) {
+                        continue;
+                    }
+
+                    // 不再允许变量赋值和shell控制行
+
+                    // 不允许的行
+                    logger.error("脚本验证失败，第 {} 行: {}", i + 1, line);
+                    return "脚本第 " + (i + 1) + " 行含有非允许内容: " + line;
+                }
+
+                return null; // 通过校验
+            } catch (IOException e) {
+                logger.error("读取脚本文件失败", e);
                 return "读取脚本文件失败: " + e.getMessage();
             }
+        }
 
-            for (int i = 0; i < lines.size(); i++) {
-                String rawLine = lines.get(i);
-                String line = rawLine.trim();
-
-                // 跳过空行
-                if (line.isEmpty()) {
-                    continue;
-                }
-
-                // 注释行
-                if (line.startsWith("#")) {
-                    continue;
-                }
-
-                // curl 命令行，需保证不含续行符
-                if (line.startsWith("curl")) {
-                    if (line.endsWith("\\")) {
-                        return String.format("脚本第 %d 行使用了续行符 \\\\，不符合单行 curl 要求: %s", i + 1, rawLine);
-                    }
-                    continue;
-                }
-
-                // 其它情况视为违规
-                return String.format("脚本第 %d 行含有非允许内容: %s", i + 1, rawLine);
+        /**
+         * 检查行是否是允许的内容
+         */
+        private boolean isAllowedLine(String line) {
+            if (line.isEmpty()) {
+                return true;
             }
 
-            return null; // 通过校验
+            // 检查是否以允许的前缀开头
+            for (String prefix : ALLOWED_PREFIXES) {
+                if (line.toLowerCase().startsWith(prefix.toLowerCase())) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /**
+         * 读取文件内容
+         */
+        private List<String> readFileLines(File file) throws IOException {
+            List<String> lines = new ArrayList<>();
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(Files.newInputStream(file.toPath()), StandardCharsets.UTF_8))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    lines.add(line);
+                }
+            }
+            return lines;
         }
     }
 
