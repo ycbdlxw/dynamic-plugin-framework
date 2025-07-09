@@ -26,12 +26,14 @@ public class TestVerificationService {
     private static final Logger logger = LoggerFactory.getLogger(TestVerificationService.class);
     private static final Pattern STATUS_PATTERN = Pattern.compile("Status:\\s*(\\d{3})");
     private static final Pattern CODE_PATTERN = Pattern.compile("\"code\"\\s*:\\s*(\\d+)");
+    private static final Pattern COMMAND_PATTERN = Pattern.compile("命令:\\s*curl\\s+(.+)");
 
     @Autowired(required = false)
     private DataSource dataSource;
 
     /**
      * 验证测试报告目录
+     *
      * @param resultDir 路径
      * @return 问题列表，为空代表通过
      */
@@ -41,11 +43,11 @@ public class TestVerificationService {
             Path base = Path.of(resultDir).toAbsolutePath();
             logger.info("开始扫描报告目录: {}", base);
             Files.walk(base)
-                 .filter(p -> p.toString().endsWith(".txt"))
-                 .forEach(p -> {
-                     logger.debug("解析报告文件: {}", p);
-                     problems.addAll(checkReportFile(p.toFile()));
-                 });
+                    .filter(p -> p.toString().endsWith(".txt"))
+                    .forEach(p -> {
+                        logger.debug("解析报告文件: {}", p);
+                        problems.addAll(checkReportFile(p.toFile()));
+                    });
         } catch (Exception e) {
             logger.error("读取报告目录失败", e);
             problems.add("读取报告目录失败: " + e.getMessage());
@@ -57,22 +59,48 @@ public class TestVerificationService {
         List<String> issues = new ArrayList<>();
         try (BufferedReader br = new BufferedReader(new FileReader(file))) {
             String line;
+            String currentCommand = "";
+            boolean isNegativeTest = false;
+
             while ((line = br.readLine()) != null) {
+                // 检查当前命令是否是负向测试
+                Matcher cmdMatcher = COMMAND_PATTERN.matcher(line);
+                if (cmdMatcher.find()) {
+                    currentCommand = cmdMatcher.group(1).toLowerCase();
+                    // 判断是否为负向测试（错误用户名、错误密码、非法路径等）
+                    isNegativeTest = currentCommand.contains("wrong_")
+                            || currentCommand.contains("non-existent")
+                            || currentCommand.contains("invalid");
+                    continue;
+                }
+
+                // 检查HTTP状态码
                 Matcher statusM = STATUS_PATTERN.matcher(line);
                 if (statusM.find()) {
                     int code = Integer.parseInt(statusM.group(1));
-                    if (code >= 300) {
+                    // 只有非负向测试且状态码异常时才报告问题
+                    if (code >= 300 && !isNegativeTest) {
                         issues.add(file.getName() + " HTTP Status " + code);
                     }
+                    continue;
                 }
+
+                // 检查业务状态码
                 Matcher codeM = CODE_PATTERN.matcher(line);
                 if (codeM.find()) {
                     int biz = Integer.parseInt(codeM.group(1));
-                    if (biz != 200) {
+                    // 只有非负向测试且业务码异常时才报告问题
+                    if (biz != 200 && !isNegativeTest) {
                         issues.add(file.getName() + " business code " + biz);
                     }
+                    continue;
                 }
-                if (line.contains("暂未登录") || line.contains("token已经过期") || line.toLowerCase().contains("error")) {
+
+                // 检查错误关键词
+                if (!isNegativeTest
+                        && (line.contains("暂未登录")
+                        || line.contains("token已经过期")
+                        || line.toLowerCase().contains("error"))) {
                     issues.add(file.getName() + " contains error keyword");
                 }
             }
@@ -118,4 +146,4 @@ public class TestVerificationService {
         }
         return issues;
     }
-} 
+}

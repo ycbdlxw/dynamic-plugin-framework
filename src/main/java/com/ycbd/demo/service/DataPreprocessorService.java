@@ -96,7 +96,7 @@ public class DataPreprocessorService {
         // 1. 自动填充用户上下文字段（edit_flag=1的字段）
         autoFillUserContextFields(attrs, data);
 
-        // 2. 默认值 & 必填校验
+        // 2. 默认值 & 必填校验 - 只处理请求中存在的字段和必填字段
         processDefaultValuesAndValidation(attrs, data);
 
         // 3. 审计字段
@@ -144,10 +144,16 @@ public class DataPreprocessorService {
         for (Map<String, Object> attr : attrs) {
             String col = MapUtil.getStr(attr, "column_name");
             boolean required = MapUtil.getBool(attr, "is_required", false);
+
+            // 只处理请求中包含的字段或必填字段
+            if (!data.containsKey(col) && !required) {
+                continue;
+            }
+
             Object val = data.get(col);
             String fieldType = MapUtil.getStr(attr, "field_type", "").toLowerCase();
 
-            // 新增：数值型字段空字符串转 null
+            // 数值型字段空字符串转 null
             if (("int".equals(fieldType) || "bigint".equals(fieldType) || "float".equals(fieldType) || "double".equals(fieldType) || "tinyint".equals(fieldType))
                     && (val instanceof String) && StrUtil.isBlank((String) val)) {
                 data.put(col, null);

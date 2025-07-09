@@ -7,17 +7,18 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.DependsOn;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import org.springframework.web.servlet.view.RedirectView;
 
 import com.ycbd.demo.plugin.IPlugin;
 import com.ycbd.demo.plugin.PluginEngine;
+import com.ycbd.demo.plugin.TestServicePlugin;
+import com.ycbd.demo.plugin.TestVerificationService;
 import com.ycbd.demo.plugin.commandexecutor.CommandExecutionService;
 import com.ycbd.demo.plugin.commandexecutor.CommandExecutorPlugin;
 import com.ycbd.demo.utils.ApiResponse;
@@ -25,9 +26,6 @@ import com.ycbd.demo.utils.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.annotation.PostConstruct;
-import org.springframework.web.servlet.mvc.support.RedirectAttributes;
-import com.ycbd.demo.plugin.TestServicePlugin;
-import com.ycbd.demo.plugin.TestVerificationService;
 
 /**
  * 测试控制器 此控制器在启动时自动加载TestService插件，并将其API请求转发到插件
@@ -91,18 +89,18 @@ public class TestController {
             @RequestParam String scriptPath,
             @RequestParam(required = false, defaultValue = "src/main/resources/test/test_results") String resultDir,
             @RequestParam(required = false, defaultValue = "false") boolean useCurrentDir) {
-        
+
         // 获取TestService插件
         IPlugin plugin = pluginEngine.getPlugin("TestService");
         if (plugin == null || !(plugin instanceof TestServicePlugin)) {
             return ApiResponse.failed("TestService插件未加载或不可用");
         }
-        
+
         TestServicePlugin testPlugin = (TestServicePlugin) plugin;
         if (!testPlugin.isInitialized()) {
             return ApiResponse.failed("TestService插件未初始化");
         }
-        
+
         // 调用插件的execute方法
         return testPlugin.getController().executeScript(scriptPath, resultDir, useCurrentDir);
     }
@@ -118,12 +116,12 @@ public class TestController {
             @RequestParam(required = false, defaultValue = "src/main/resources/test/test_results") String resultDir,
             @RequestParam(required = false, defaultValue = "false") boolean useCurrentDir,
             RedirectAttributes attributes) {
-        
+
         // 重定向到新的API
         attributes.addAttribute("scriptPath", scriptPath);
         attributes.addAttribute("resultDir", resultDir);
         attributes.addAttribute("useCurrentDir", useCurrentDir);
-        
+
         return new RedirectView("/api/test/execute");
     }
 
@@ -151,7 +149,9 @@ public class TestController {
         }
     }
 
-    /** 完整验证：报告+数据库 */
+    /**
+     * 完整验证：报告+数据库
+     */
     @PostMapping("/verify")
     @Operation(summary = "验证测试结果", description = "检查报告目录与数据库状态")
     public ApiResponse<Object> verifyAll(@RequestParam(required = false, defaultValue = "src/main/resources/test/test_results") String resultDir) {
