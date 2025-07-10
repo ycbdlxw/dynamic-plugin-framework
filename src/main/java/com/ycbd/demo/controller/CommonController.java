@@ -7,6 +7,7 @@ import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -17,7 +18,6 @@ import org.springframework.web.bind.annotation.RestController;
 import com.ycbd.demo.security.UserContext;
 import com.ycbd.demo.service.BaseService;
 import com.ycbd.demo.utils.ApiResponse;
-import org.springframework.web.bind.annotation.CrossOrigin;
 
 @RestController
 @RequestMapping("/api/common")
@@ -110,6 +110,100 @@ public class CommonController {
             return ApiResponse.success(result);
         } catch (Exception e) {
             logger.error("查询失败", e);
+            return ApiResponse.failed("查询失败: " + e.getMessage());
+        }
+    }
+
+    @PostMapping("/list")
+    public ApiResponse<Map<String, Object>> listPost(
+            @RequestBody Map<String, Object> requestBody) {
+        try {
+            String targetTable = requestBody.get("targetTable").toString();
+            logger.info("POST方式获取列表请求: targetTable={}, body={}", targetTable, requestBody);
+
+            // 获取用户信息并记录日志
+            Map<String, Object> user = UserContext.getUser();
+            logger.info("当前用户上下文: {}", user);
+
+            // 安全检查：获取当前用户ID
+            Integer userId = UserContext.getUserId();
+            logger.info("获取到的userId: {}", userId);
+
+            // 获取分页参数
+            int pageIndex = 0;
+            int pageSize = 10;
+            if (requestBody.containsKey("pageIndex")) {
+                pageIndex = Integer.parseInt(requestBody.get("pageIndex").toString());
+            }
+            if (requestBody.containsKey("pageSize")) {
+                pageSize = Integer.parseInt(requestBody.get("pageSize").toString());
+            }
+
+            // 获取查询参数
+            Map<String, Object> params = new HashMap<>();
+            if (requestBody.containsKey("params") && requestBody.get("params") instanceof Map) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> requestParams = (Map<String, Object>) requestBody.get("params");
+                
+                // 遍历并处理所有参数
+                for (Map.Entry<String, Object> entry : requestParams.entrySet()) {
+                    String key = entry.getKey();
+                    Object value = entry.getValue();
+                    
+                    // 处理数组类型参数
+                    if (value instanceof List) {
+                        List<?> list = (List<?>) value;
+                        
+                        // 范围查询特殊处理
+                        if (key.endsWith("_range") && list.size() == 2) {
+                            // 将["2023-01-01", "2023-12-31"]转换成"2023-01-01~2023-12-31"
+                            String rangeValue = list.get(0) + "~" + list.get(1);
+                            params.put(key, rangeValue);
+                        } else {
+                            // IN查询，将数组转换成逗号分隔的字符串
+                            String inValue = list.stream()
+                                    .map(Object::toString)
+                                    .collect(java.util.stream.Collectors.joining(","));
+                            
+                            // 自动添加_in后缀（如果没有）
+                            if (!key.endsWith("_in")) {
+                                key = key + "_in";
+                            }
+                            
+                            // 特殊处理：roles参数不是sys_user表的直接字段，需要去除
+                            if (!"roles_in".equals(key) && !"roles".equals(key)) {
+                                params.put(key, inValue);
+                            } else {
+                                logger.info("跳过roles参数，因为它不是sys_user表的直接字段");
+                            }
+                        }
+                    } else {
+                        // 直接添加其他类型的参数，但排除roles字段
+                        if (!"roles".equals(key)) {
+                            params.put(key, value);
+                        } else {
+                            logger.info("跳过roles参数，因为它不是sys_user表的直接字段");
+                        }
+                    }
+                }
+            }
+
+            logger.info("处理后的查询参数: {}", params);
+
+            // 使用BaseService查询列表
+            List<Map<String, Object>> items = baseService.queryList(
+                    targetTable, pageIndex, pageSize, null, params, null, "id ASC", null);
+
+            // 获取总数
+            int total = baseService.count(targetTable, params, null);
+
+            Map<String, Object> result = new HashMap<>();
+            result.put("items", items);
+            result.put("total", total);
+
+            return ApiResponse.success(result);
+        } catch (Exception e) {
+            logger.error("POST方式查询失败", e);
             return ApiResponse.failed("查询失败: " + e.getMessage());
         }
     }

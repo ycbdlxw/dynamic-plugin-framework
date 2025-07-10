@@ -12,10 +12,6 @@ import org.springframework.transaction.annotation.Transactional;
 import com.ycbd.demo.mapper.SystemMapper;
 import com.ycbd.demo.utils.SqlWhereBuilder;
 import com.ycbd.demo.utils.Tools;
-import com.ycbd.demo.security.UserContext;
-import com.ycbd.demo.service.FilterRuleService;
-import com.ycbd.demo.service.DataPreprocessorService;
-import com.ycbd.demo.service.MetaService;
 
 import cn.hutool.core.map.MapUtil;
 import cn.hutool.core.util.StrUtil;
@@ -249,10 +245,10 @@ public class BaseService {
         if (params == null || params.isEmpty()) {
             return "";
         }
-        
+
         // 创建params的可变副本，避免修改不可变Map导致UnsupportedOperationException
         Map<String, Object> mutableParams = new HashMap<>(params);
-        
+
         // 跳过分页/排序保留参数
         mutableParams.remove("pageindex");
         mutableParams.remove("pagesize");
@@ -260,6 +256,16 @@ public class BaseService {
         mutableParams.remove("offset");
         mutableParams.remove("limit");
         mutableParams.remove("columns");
+
+        // 处理特定表的特殊字段情况
+        if ("sys_user".equals(table)) {
+            // sys_user表不存在is_deleted字段，移除这个条件
+            mutableParams.remove("is_deleted");
+            
+            // sys_user表不存在roles字段，移除这个条件
+            mutableParams.remove("roles");
+            mutableParams.remove("roles_in");
+        }
 
         // Step 1: 获取并转换字段属性
         List<Map<String, Object>> columnAttributes = getColumnAttributes(table, null);
@@ -290,9 +296,19 @@ public class BaseService {
                 int idx = originalKey.lastIndexOf("_");
                 columnName = originalKey.substring(0, idx);
                 overrideQueryType = "range";
+
+                // 特殊处理字段名映射，将create_time映射到created_at
+                if ("create_time".equals(columnName)) {
+                    columnName = "created_at";
+                }
             } else if (valueObj instanceof List || (valueObj instanceof String && ((String) valueObj).contains(","))) {
                 // 如果值为列表或以逗号分隔，自动识别为 IN 查询
                 overrideQueryType = "in";
+            }
+
+            // 处理特殊字段映射
+            if ("create_time".equals(columnName)) {
+                columnName = "created_at";
             }
 
             // 转换值为字符串

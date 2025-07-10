@@ -18,7 +18,7 @@ curl -X GET "http://localhost:8080/api/common/list?targetTable=sys_user&pageInde
 curl -X GET "http://localhost:8080/api/common/list?targetTable=sys_user&pageIndex=0&pageSize=10&username_like=adm&status=1&create_time_range=2023-01-01~2023-12-31" -H "Content-Type: application/json" -H "Authorization: Bearer your-token-here"
 
 # 测试POST方式查询（传递复杂参数）
-curl -X POST "http://localhost:8080/api/common/list" -H "Content-Type: application/json" -H "Authorization: Bearer your-token-here" -d '{"targetTable": "sys_user","pageIndex": 0,"pageSize": 10,"params": {"username_like": "adm","status": 1,"roles_in": [1, 2, 3],"create_time_range": ["2023-01-01", "2023-12-31"]}}'
+curl -X POST "http://localhost:8080/api/common/list" -H "Content-Type: application/json" -H "Authorization: Bearer your-token-here" -d '{"targetTable": "sys_user","pageIndex": 0,"pageSize": 10,"params": {"username_like": "adm","status": 1,"create_time_range": ["2023-01-01", "2023-12-31"]}}'
 
 # 测试布尔值查询
 curl -X GET "http://localhost:8080/api/common/list?targetTable=sys_user&pageIndex=0&pageSize=10&is_deleted=false" -H "Content-Type: application/json" -H "Authorization: Bearer your-token-here"
