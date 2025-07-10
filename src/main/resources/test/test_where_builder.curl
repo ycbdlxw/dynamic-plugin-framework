@@ -1,28 +1,31 @@
 # 测试WHERE子句构建优化
+# 1. 登录获取 Token
+curl -s -X POST "http://localhost:8080/api/core/login" -H "Content-Type: application/json" -d '{"username":"admin","password":"ycbd1234"}' -w "\n\nStatus: %{http_code}\nTime: %{time_total}s\n\n"
+
 # 测试基本等于查询
-curl -X GET "http://localhost:8080/api/common/list?targetTable=sys_user&pageIndex=0&pageSize=10&username=admin" -H "Content-Type: application/json" -H "Authorization: Bearer {{TOKEN}}"
+curl -X GET "http://localhost:8080/api/common/list?targetTable=sys_user&pageIndex=0&pageSize=10&username=admin" -H "Content-Type: application/json" -H "Authorization: Bearer your-token-here"
 
 # 测试模糊查询（后缀_like）
-curl -X GET "http://localhost:8080/api/common/list?targetTable=sys_user&pageIndex=0&pageSize=10&username_like=adm" -H "Content-Type: application/json" -H "Authorization: Bearer {{TOKEN}}"
+curl -X GET "http://localhost:8080/api/common/list?targetTable=sys_user&pageIndex=0&pageSize=10&username_like=adm" -H "Content-Type: application/json" -H "Authorization: Bearer your-token-here"
 
 # 测试IN查询（后缀_in）
-curl -X GET "http://localhost:8080/api/common/list?targetTable=sys_user&pageIndex=0&pageSize=10&status_in=1,2" -H "Content-Type: application/json" -H "Authorization: Bearer {{TOKEN}}"
+curl -X GET "http://localhost:8080/api/common/list?targetTable=sys_user&pageIndex=0&pageSize=10&status_in=1,2" -H "Content-Type: application/json" -H "Authorization: Bearer your-token-here"
 
 # 测试范围查询（后缀_range）
-curl -X GET "http://localhost:8080/api/common/list?targetTable=sys_user&pageIndex=0&pageSize=10&create_time_range=2023-01-01~2023-12-31" -H "Content-Type: application/json" -H "Authorization: Bearer {{TOKEN}}"
+curl -X GET "http://localhost:8080/api/common/list?targetTable=sys_user&pageIndex=0&pageSize=10&create_time_range=2023-01-01~2023-12-31" -H "Content-Type: application/json" -H "Authorization: Bearer your-token-here"
 
 # 测试多条件组合查询
-curl -X GET "http://localhost:8080/api/common/list?targetTable=sys_user&pageIndex=0&pageSize=10&username_like=adm&status=1&create_time_range=2023-01-01~2023-12-31" -H "Content-Type: application/json" -H "Authorization: Bearer {{TOKEN}}"
+curl -X GET "http://localhost:8080/api/common/list?targetTable=sys_user&pageIndex=0&pageSize=10&username_like=adm&status=1&create_time_range=2023-01-01~2023-12-31" -H "Content-Type: application/json" -H "Authorization: Bearer your-token-here"
 
 # 测试POST方式查询（传递复杂参数）
-curl -X POST "http://localhost:8080/api/common/list" -H "Content-Type: application/json" -H "Authorization: Bearer {{TOKEN}}" -d '{"targetTable": "sys_user","pageIndex": 0,"pageSize": 10,"params": {"username_like": "adm","status": 1,"roles_in": [1, 2, 3],"create_time_range": ["2023-01-01", "2023-12-31"]}}'
+curl -X POST "http://localhost:8080/api/common/list" -H "Content-Type: application/json" -H "Authorization: Bearer your-token-here" -d '{"targetTable": "sys_user","pageIndex": 0,"pageSize": 10,"params": {"username_like": "adm","status": 1,"roles_in": [1, 2, 3],"create_time_range": ["2023-01-01", "2023-12-31"]}}'
 
 # 测试布尔值查询
-curl -X GET "http://localhost:8080/api/common/list?targetTable=sys_user&pageIndex=0&pageSize=10&is_deleted=false" -H "Content-Type: application/json" -H "Authorization: Bearer {{TOKEN}}"
+curl -X GET "http://localhost:8080/api/common/list?targetTable=sys_user&pageIndex=0&pageSize=10&is_deleted=false" -H "Content-Type: application/json" -H "Authorization: Bearer your-token-here"
 
 # 测试空值处理
-curl -X GET "http://localhost:8080/api/common/list?targetTable=sys_user&pageIndex=0&pageSize=10&username=&status=" -H "Content-Type: application/json" -H "Authorization: Bearer {{TOKEN}}"
+curl -X GET "http://localhost:8080/api/common/list?targetTable=sys_user&pageIndex=0&pageSize=10&username=&status=" -H "Content-Type: application/json" -H "Authorization: Bearer your-token-here"
 
 # 测试特殊字符处理
-curl -X GET "http://localhost:8080/api/common/list?targetTable=sys_user&pageIndex=0&pageSize=10&username_like=ad'min" -H "Content-Type: application/json" -H "Authorization: Bearer {{TOKEN}}" 
+curl -X GET "http://localhost:8080/api/common/list?targetTable=sys_user&pageIndex=0&pageSize=10&username_like=ad'min" -H "Content-Type: application/json" -H "Authorization: Bearer your-token-here" 
  

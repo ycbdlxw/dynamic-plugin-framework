@@ -4,10 +4,10 @@
 # 创建人: 系统管理员
 
 # 1. 健康检查测试
-curl -X GET "http://localhost:8081/api/common/health" -w "\n\nStatus: %{http_code}\nTime: %{time_total}s\n\n"
+curl -X GET "http://localhost:8080/api/common/health" -w "\n\nStatus: %{http_code}\nTime: %{time_total}s\n\n"
 
 # 2. 服务器信息测试
-curl -X GET "http://localhost:8081/api/common/health" -H "Content-Type: application/json" -w "\n\nStatus: %{http_code}\nTime: %{time_total}s\n\n"
+curl -X GET "http://localhost:8080/api/common/health" -H "Content-Type: application/json" -w "\n\nStatus: %{http_code}\nTime: %{time_total}s\n\n"
 
 # 3. 错误路径测试
-curl -X GET "http://localhost:8081/api/non-existent-path" -w "\n\nStatus: %{http_code}\nTime: %{time_total}s\n\n" 
+curl -X GET "http://localhost:8080/api/non-existent-path" -w "\n\nStatus: %{http_code}\nTime: %{time_total}s\n\n" 

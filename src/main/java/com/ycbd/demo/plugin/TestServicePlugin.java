@@ -14,9 +14,7 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -119,50 +117,18 @@ public class TestServicePlugin implements IPlugin {
                 File resultFile = new File(resultDirFile, resultFileName);
                 logger.info("[TEST] 结果文件路径: {}", resultFile.getAbsolutePath());
 
-                // 逐行执行curl命令并收集结果
-                List<String> lines = Files.readAllLines(scriptFile.toPath(), StandardCharsets.UTF_8);
-                try (BufferedWriter writer = new BufferedWriter(new FileWriter(resultFile))) {
-                    writer.write("=== 脚本执行结果 ===\n");
-                    writer.write("脚本: " + scriptFile.getAbsolutePath() + "\n");
-                    writer.write("时间: " + new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date()) + "\n");
-                    int total = 0, success = 0, fail = 0;
-                    for (String raw : lines) {
-                        String line = raw.trim();
-                        if (line.isEmpty() || line.startsWith("#") || line.toLowerCase().startsWith("echo ")) continue;
-                        if (line.toLowerCase().startsWith("curl ")) {
-                            total++;
-                            writer.write("\n命令: " + line + "\n");
-                            logger.info("[TEST] 执行命令: {}", line);
-                            ProcessBuilder pb = new ProcessBuilder();
-                            pb.command("bash", "-c", line);
-                            Process proc = pb.start();
-                            StringBuilder out = new StringBuilder();
-                            try (BufferedReader r = new BufferedReader(new InputStreamReader(proc.getInputStream()))) {
-                                String l; while ((l = r.readLine()) != null) out.append(l).append("\n");
-                            }
-                            StringBuilder err = new StringBuilder();
-                            try (BufferedReader r = new BufferedReader(new InputStreamReader(proc.getErrorStream()))) {
-                                String l; while ((l = r.readLine()) != null) err.append(l).append("\n");
-                            }
-                            int code = proc.waitFor();
-                            writer.write("退出码: " + code + "\n");
-                            writer.write("输出:\n" + out);
-                            if (!err.isEmpty()) writer.write("错误:\n" + err);
-                            logger.info("[TEST] 命令退出码: {} 输出: {} 错误: {}", code, out, err);
-                            if (code == 0) success++; else fail++;
-                        } else {
-                            writer.write("非法命令行: " + line + "\n");
-                            logger.warn("[TEST] 非法命令行: {}", line);
-                        }
-                    }
-                    writer.write("\n=== 执行总结 ===\n");
-                    writer.write("总命令数: " + total + "\n");
-                    writer.write("成功数: " + success + "\n");
-                    writer.write("失败数: " + fail + "\n");
+                // 使用带token处理的executeScript方法
+                try {
+                    List<CommandResult> results = executeScript(scriptFile, resultFile);
+                    int total = results.size();
+                    long success = results.stream().filter(CommandResult::isSuccess).count();
+                    long fail = total - success;
                     logger.info("[TEST] 执行总结: 总命令数:{} 成功:{} 失败:{}", total, success, fail);
+                    return ApiResponse.success("脚本执行成功，结果保存在: " + resultFile.getAbsolutePath());
+                } catch (IOException e) {
+                    logger.error("[TEST] 执行脚本失败", e);
+                    return ApiResponse.failed("执行脚本失败: " + e.getMessage());
                 }
-                logger.info("[TEST] 结果文件写入完成: {}", resultFile.getAbsolutePath());
-                return ApiResponse.success("脚本执行成功，结果保存在: " + resultFile.getAbsolutePath());
             } catch (Exception e) {
                 logger.error("[TEST] 执行脚本失败", e);
                 return ApiResponse.failed("执行脚本失败: " + e.getMessage());
@@ -214,27 +180,27 @@ public class TestServicePlugin implements IPlugin {
                         results.add(result);
                         writeResult(writer, currentDesc, result);
 
-                         // 如果脚本需要token且这是首条curl，则视为登录命令
-                         if (requiresToken && firstCurl) {
-                             firstCurl = false;
+                        // 如果脚本需要token且这是首条curl，则视为登录命令
+                        if (requiresToken && firstCurl) {
+                            firstCurl = false;
 
-                             // 提取 token
-                             if (result.getToken() != null && !result.getToken().isEmpty()) {
-                                 token = result.getToken();
-                             } else {
-                                 String extracted = extractToken(result.getResult());
-                                 if (result.isSuccess() && extracted != null && !extracted.isEmpty()) {
-                                     token = extracted;
-                                 }
-                             }
+                            // 提取 token
+                            if (result.getToken() != null && !result.getToken().isEmpty()) {
+                                token = result.getToken();
+                            } else {
+                                String extracted = extractToken(result.getResult());
+                                if (result.isSuccess() && extracted != null && !extracted.isEmpty()) {
+                                    token = extracted;
+                                }
+                            }
 
-                             // 登录失败，终止脚本
-                             if (token == null || token.isEmpty()) {
-                                 writer.write("登录失败，未获取token，终止脚本执行\n");
-                                 logger.error("登录失败，未获取token，终止脚本执行");
-                                 break;
-                             }
-                         } else {
+                            // 登录失败，终止脚本
+                            if (token == null || token.isEmpty()) {
+                                writer.write("登录失败，未获取token，终止脚本执行\n");
+                                logger.error("登录失败，未获取token，终止脚本执行");
+                                break;
+                            }
+                        } else {
                             // 后续命令：若包含占位符则替换
                             if (token != null && !token.isEmpty()) {
                                 // 已在 executeCommand 内替换 your-token-here
@@ -282,7 +248,6 @@ public class TestServicePlugin implements IPlugin {
             }
 
             // 不主动追加 Authorization 头，只在命令中显式存在占位符时进行替换
-
             try {
                 // 创建进程
                 ProcessBuilder processBuilder = new ProcessBuilder();
@@ -479,7 +444,6 @@ public class TestServicePlugin implements IPlugin {
                     }
 
                     // 不再允许变量赋值和shell控制行
-
                     // 不允许的行
                     logger.error("脚本验证失败，第 {} 行: {}", i + 1, line);
                     return "脚本第 " + (i + 1) + " 行含有非允许内容: " + line;

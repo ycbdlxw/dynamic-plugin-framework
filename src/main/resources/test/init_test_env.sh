@@ -21,7 +21,7 @@ main() {
   
   # 检查应用是否运行
   log "检查应用是否运行"
-  HEALTH_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:8081/api/common/health")
+  HEALTH_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:8080/api/common/health")
   if [ "$HEALTH_STATUS" == "200" ]; then
     log "应用已启动: $HEALTH_STATUS"
   else
@@ -31,7 +31,7 @@ main() {
 
   # 登录获取管理员Token
   log "获取管理员Token"
-  ADMIN_TOKEN=$(curl -s -X POST "http://localhost:8081/api/core/login" \
+  ADMIN_TOKEN=$(curl -s -X POST "http://localhost:8080/api/core/login" \
     -H "Content-Type: application/json" \
     -d '{"username":"admin","password":"ycbd1234"}' | grep -o '"token":"[^"]*' | cut -d'"' -f4)
 
@@ -43,13 +43,13 @@ main() {
     SQL_CONTENT=$(cat "${SCRIPT_DIR}/init_roles.sql")
     
     # 使用命令执行器插件执行SQL
-    curl -s -X POST "http://localhost:8081/api/plugin/command-executor/execute-sql" \
+    curl -s -X POST "http://localhost:8080/api/plugin/command-executor/execute-sql" \
       -H "Content-Type: application/json" \
       -d "{\"sql\":\"${SQL_CONTENT}\"}" > /dev/null
     
     log "SQL初始化完成，重新尝试登录"
     
-    ADMIN_TOKEN=$(curl -s -X POST "http://localhost:8081/api/core/login" \
+    ADMIN_TOKEN=$(curl -s -X POST "http://localhost:8080/api/core/login" \
       -H "Content-Type: application/json" \
       -d '{"username":"admin","password":"ycbd1234"}' | grep -o '"token":"[^"]*' | cut -d'"' -f4)
       

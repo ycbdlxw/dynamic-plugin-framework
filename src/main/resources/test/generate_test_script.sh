@@ -55,7 +55,7 @@ cat > "$TEST_FILE_PATH" << EOF
 
 # 获取Token
 echo "获取管理员Token..."
-curl -s -X POST "http://localhost:8081/api/core/login" -H "Content-Type: application/json" -d '{"username":"admin","password":"ycbd1234"}' > token_response.txt
+curl -s -X POST "http://localhost:8080/api/core/login" -H "Content-Type: application/json" -d '{"username":"admin","password":"ycbd1234"}' > token_response.txt
 TOKEN=$(cat token_response.txt | grep -o '"token":"[^"]*' | cut -d'"' -f4)
 
 # 检查Token
@@ -68,11 +68,11 @@ echo "Token获取成功"
 
 # 1. 测试示例
 echo "测试1: 示例测试"
-curl -X GET "http://localhost:8081/api/common/health" -H "Authorization: Bearer $TOKEN" -w "\n\nStatus: %{http_code}\nTime: %{time_total}s\n\n"
+curl -X GET "http://localhost:8080/api/common/health" -H "Authorization: Bearer $TOKEN" -w "\n\nStatus: %{http_code}\nTime: %{time_total}s\n\n"
 
 # 2. 测试示例2
 echo "测试2: 示例测试2"
-curl -X GET "http://localhost:8081/api/common/health" -H "Authorization: Bearer $TOKEN" -w "\n\nStatus: %{http_code}\nTime: %{time_total}s\n\n"
+curl -X GET "http://localhost:8080/api/common/health" -H "Authorization: Bearer $TOKEN" -w "\n\nStatus: %{http_code}\nTime: %{time_total}s\n\n"
 
 # 清理临时文件
 rm -f token_response.txt
@@ -83,7 +83,7 @@ cat > "$RUN_SCRIPT_PATH" << EOF
 #!/bin/bash
 
 # 设置基础变量
-API_BASE="http://localhost:8081"
+API_BASE="http://localhost:8080"
 SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 RESULT_DIR="${SCRIPT_DIR}/test_results"
 LOG_DIR="./logs"

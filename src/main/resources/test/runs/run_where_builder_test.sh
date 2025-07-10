@@ -5,7 +5,7 @@
 # 日期：$(date +%Y-%m-%d)
 
 # 设置变量
-API_BASE="http://localhost:8081"
+API_BASE="http://localhost:8080"
 SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 RESULT_DIR="src/main/resources/test/test_results"
 LOG_DIR="./logs"

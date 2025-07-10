@@ -26,7 +26,7 @@
 
 - 正确的API调用方式：
   ```
-  curl -X POST "http://localhost:8081/api/test/execute?scriptPath=/path/to/script.curl&resultDir=/path/to/results&useCurrentDir=true"
+  curl -X POST "http://localhost:8080/api/test/execute?scriptPath=/path/to/script.curl&resultDir=/path/to/results&useCurrentDir=true"
   ```
 
 ## 测试流程

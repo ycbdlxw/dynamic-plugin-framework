@@ -4,7 +4,7 @@
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 LOG_DIR="${SCRIPT_DIR}/logs"
 RESULT_DIR="src/main/resources/test/test_results"
-API_BASE="http://localhost:8081"
+API_BASE="http://localhost:8080"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../../../../.." && pwd)"
 JAR_FILE="${PROJECT_ROOT}/target/dynamic-plugin-framework-1.0.0.jar"
 

@@ -4,7 +4,7 @@
 # 创建人: ycbd
 
 # 1. 登录获取 Token
-curl -s -X POST "http://localhost:8081/api/core/login" -H "Content-Type: application/json" -d '{"username":"admin","password":"ycbd1234"}' -w "\n\nStatus: %{http_code}\nTime: %{time_total}s\n\n"
+curl -s -X POST "http://localhost:8080/api/core/login" -H "Content-Type: application/json" -d '{"username":"admin","password":"ycbd1234"}' -w "\n\nStatus: %{http_code}\nTime: %{time_total}s\n\n"
 
 # 2. 注册新用户
-curl -X POST "http://localhost:8081/api/core/register" -H "Content-Type: application/json" -d '{"username":"newuser","password":"test1234","email":"new_user@example.com"}' -w "\n\nStatus: %{http_code}\nTime: %{time_total}s\n\n" 
+curl -X POST "http://localhost:8080/api/core/register" -H "Content-Type: application/json" -d '{"username":"newuser","password":"test1234","email":"new_user@example.com"}' -w "\n\nStatus: %{http_code}\nTime: %{time_total}s\n\n" 
