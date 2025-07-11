@@ -1,0 +1,12 @@
+# 字段映射 功能测试文件
+# 使用方法: sh run_field_mapping_test.sh
+# 创建日期: 2025-07-10
+# 创建人: Auto
+
+# 1. 登录获取 Token
+echo "获取 Token"
+curl -s -X POST "http://localhost:8080/api/core/login" -H "Content-Type: application/json" -d '{"username":"admin","password":"ycbd1234"}' -w "\n\nStatus: %{http_code}\nTime: %{time_total}s\n\n"
+
+# 2. 字段映射查询（create_time_range -> created_at）
+echo "字段映射范围查询(create_time_range)"
+curl -X GET "http://localhost:8080/api/common/list?targetTable=sys_user&create_time_range=2023-01-01~2025-12-31" -H "Content-Type: application/json" -H "Authorization: Bearer your-token-here" -w "\n\nStatus: %{http_code}\nTime: %{time_total}s\n\n" 

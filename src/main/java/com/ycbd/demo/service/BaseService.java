@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -15,6 +16,9 @@ import com.ycbd.demo.utils.Tools;
 
 import cn.hutool.core.map.MapUtil;
 import cn.hutool.core.util.StrUtil;
+import cn.hutool.json.JSONObject;
+import cn.hutool.json.JSONUtil;
+import cn.hutool.core.lang.TypeReference;
 
 @Service
 public class BaseService {
@@ -30,6 +34,34 @@ public class BaseService {
 
     @Autowired
     private MetaService metaService;
+
+    /** 全局字段映射缓存 key->真实列名 */
+    private static final Map<String, String> GLOBAL_FIELD_MAPPINGS_CACHE = new ConcurrentHashMap<>();
+
+    /**
+     * 加载全局字段映射（sys_dict_item.category_code='FIELD_MAPPING'），带简单缓存。
+     */
+    private Map<String, String> getGlobalFieldMappings() {
+        if (!GLOBAL_FIELD_MAPPINGS_CACHE.isEmpty()) {
+            return GLOBAL_FIELD_MAPPINGS_CACHE;
+        }
+        try {
+            // 直接使用 SystemMapper 查询字典项
+            List<Map<String, Object>> list = systemMapper.getItemsData(
+                    "sys_dict_item", "item_key,item_value", null,
+                    "sys_dict_item.category_code = 'FIELD_MAPPING'", null, null, 1000, 0);
+            for (Map<String, Object> row : list) {
+                String key = MapUtil.getStr(row, "item_key");
+                String val = MapUtil.getStr(row, "item_value");
+                if (StrUtil.isNotBlank(key) && StrUtil.isNotBlank(val)) {
+                    GLOBAL_FIELD_MAPPINGS_CACHE.putIfAbsent(key, val);
+                }
+            }
+        } catch (Exception ex) {
+            org.slf4j.LoggerFactory.getLogger(BaseService.class).warn("加载全局字段映射失败", ex);
+        }
+        return GLOBAL_FIELD_MAPPINGS_CACHE;
+    }
 
     /**
      * 查询列表
@@ -246,9 +278,25 @@ public class BaseService {
             return "";
         }
 
-        // 创建params的可变副本，避免修改不可变Map导致UnsupportedOperationException
-        Map<String, Object> mutableParams = new HashMap<>(params);
+        // ---------- 1. 解析字段映射配置 ----------
+        Map<String, String> tableFieldMappings = new HashMap<>();
+        try {
+            Map<String, Object> tableCfg = getTableConfig(table);
+            String defin = MapUtil.getStr(tableCfg, "defin_columns");
+            if (StrUtil.isNotBlank(defin)) {
+                JSONObject jo = JSONUtil.parseObj(defin);
+                if (jo.containsKey("field_mapping")) {
+                    tableFieldMappings = jo.getJSONObject("field_mapping")
+                            .toBean(new TypeReference<Map<String, String>>() {
+                            });
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        Map<String, String> globalMappings = getGlobalFieldMappings();
 
+        // ---------- 2. 构建可变参数 ----------
+        Map<String, Object> mutableParams = new HashMap<>(params);
         // 跳过分页/排序保留参数
         mutableParams.remove("pageindex");
         mutableParams.remove("pagesize");
@@ -257,12 +305,9 @@ public class BaseService {
         mutableParams.remove("limit");
         mutableParams.remove("columns");
 
-        // 处理特定表的特殊字段情况
+        // 特定表的无效字段过滤
         if ("sys_user".equals(table)) {
-            // sys_user表不存在is_deleted字段，移除这个条件
             mutableParams.remove("is_deleted");
-            
-            // sys_user表不存在roles字段，移除这个条件
             mutableParams.remove("roles");
             mutableParams.remove("roles_in");
         }
@@ -296,19 +341,15 @@ public class BaseService {
                 int idx = originalKey.lastIndexOf("_");
                 columnName = originalKey.substring(0, idx);
                 overrideQueryType = "range";
-
-                // 特殊处理字段名映射，将create_time映射到created_at
-                if ("create_time".equals(columnName)) {
-                    columnName = "created_at";
-                }
             } else if (valueObj instanceof List || (valueObj instanceof String && ((String) valueObj).contains(","))) {
                 // 如果值为列表或以逗号分隔，自动识别为 IN 查询
                 overrideQueryType = "in";
             }
 
-            // 处理特殊字段映射
-            if ("create_time".equals(columnName)) {
-                columnName = "created_at";
+            // ---------- 字段映射 ----------
+            String mapped = tableFieldMappings.getOrDefault(columnName, globalMappings.get(columnName));
+            if (StrUtil.isNotBlank(mapped)) {
+                columnName = mapped;
             }
 
             // 转换值为字符串
