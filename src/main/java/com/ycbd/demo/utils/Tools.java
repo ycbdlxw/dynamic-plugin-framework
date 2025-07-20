@@ -9,8 +9,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+
 import org.springframework.web.context.request.ServletRequestAttributes;
 
 import cn.hutool.core.util.StrUtil;
@@ -20,7 +19,6 @@ import cn.hutool.core.util.StrUtil;
  */
 public class Tools {
 
-    private static final Logger logger = LoggerFactory.getLogger(Tools.class);
 
     /**
      * 将各种格式的日期字符串转换为标准格式

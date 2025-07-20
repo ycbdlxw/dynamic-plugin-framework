@@ -5,7 +5,7 @@ import java.util.Map;
 
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
-import org.apache.ibatis.annotations.Select;
+import org.apache.ibatis.annotations.Update;
 
 @Mapper
 public interface SystemMapper {
@@ -123,4 +123,13 @@ public interface SystemMapper {
      * 获取用户完整信息（包含角色、权限、组织机构等）
      */
     Map<String, Object> getUserWithDetails(@Param("username") String username);
+    
+    /**
+     * 执行SQL更新语句
+     * 
+     * @param sql 要执行的SQL语句
+     * @return 受影响的行数
+     */
+    @Update("${sql}")
+    int executeUpdate(@Param("sql") String sql);
 }

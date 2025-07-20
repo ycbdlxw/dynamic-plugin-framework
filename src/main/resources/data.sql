@@ -1,6 +1,6 @@
 -- 添加初始用户（密码：ycbd1234）
-INSERT INTO sys_user (username, password, real_name, email, status) VALUES
-('admin', '$2a$10$82G8gQiqZ1sOhmi1z.v0aOwVzP1A02GfUtcUCTObwKMEQYwn/kT/G', '管理员', 'admin@example.com', 1);
+INSERT INTO sys_user (username, password, real_name, email, status,role_id,org_id) VALUES
+('admin', '$2a$10$CBzRBu4twNzr4PjvwN8JzeyXgQKFI6oyFURdVN.TUf4rt/7.xkqPy', '管理员', 'admin@example.com', 1,1,1);
 
 -- 初始化角色数据
 INSERT INTO sys_role (role_name, role_code, description, status) VALUES
@@ -110,13 +110,15 @@ INSERT INTO table_attribute (db_table, table_name, main_key, sort, module, group
 
 -- sys_user 表字段属性配置
 INSERT INTO column_attribute (db_table_name, column_name, page_name, is_show_in_list, search_flag, edit_flag, is_required, order_no, field_type, field_num_type, other_info) VALUES
-('sys_user', 'id', 'ID', TRUE, FALSE, FALSE, FALSE, 1, 'int', 2, '{"isTokenField":true,"tokenName":"userId"}'),
+('sys_user', 'id', 'ID', TRUE, FALSE, FALSE, FALSE, 1, 'int', 2, '{"isTokenField":true}'),
 ('sys_user', 'username', '用户名', TRUE, TRUE, TRUE, TRUE, 2, 'varchar', 1, '{"isTokenField":true}'),
-('sys_user', 'password', '密码', FALSE, FALSE, TRUE, TRUE, 3, 'varchar', 1, NULL),
-('sys_user', 'real_name', '真实姓名', TRUE, TRUE, TRUE, FALSE, 4, 'varchar', 1, '{"isTokenField":true,"tokenName":"real_name"}'),
-('sys_user', 'email', '邮箱', TRUE, TRUE, TRUE, FALSE, 5, 'varchar', 1, NULL),
-('sys_user', 'status', '状态', TRUE, TRUE, TRUE, FALSE, 6, 'tinyint', 3, '{"class_code":"status_flag"}'),
-('sys_user', 'created_at', '创建时间', TRUE, TRUE, FALSE, FALSE, 7, 'timestamp', 4, NULL);
+('sys_user', 'role_id', '角色ID', TRUE, TRUE, TRUE, TRUE, 3, 'int', 1, '{"isTokenField":true}'),
+('sys_user', 'org_id', '机构ID', TRUE, TRUE, TRUE, TRUE, 4, 'int', 1, '{"isTokenField":true}'),
+('sys_user', 'password', '密码', FALSE, FALSE, TRUE, TRUE, 5, 'varchar', 1, NULL),
+('sys_user', 'real_name', '真实姓名', TRUE, TRUE, TRUE, FALSE, 6, 'varchar', 1, '{"isTokenField":true,"tokenName":"real_name"}'),
+('sys_user', 'email', '邮箱', TRUE, TRUE, TRUE, FALSE, 7, 'varchar', 1, NULL),
+('sys_user', 'status', '状态', TRUE, TRUE, TRUE, FALSE, 8, 'tinyint', 3, '{"class_code":"status_flag"}'),
+('sys_user', 'created_at', '创建时间', TRUE, TRUE, FALSE, FALSE, 9, 'timestamp', 4, NULL);
 
 -- sys_role 表字段属性配置
 INSERT INTO column_attribute (db_table_name, column_name, page_name, is_show_in_list, search_flag, edit_flag, is_required, order_no, field_type, field_num_type) VALUES

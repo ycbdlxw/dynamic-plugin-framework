@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.ycbd.demo.utils.ApiResponse;
 import com.ycbd.demo.utils.ResultCode;
+import com.ycbd.demo.mapper.SystemMapper;
 
 import cn.hutool.core.map.MapUtil;
 import cn.hutool.core.util.StrUtil;
@@ -33,6 +34,10 @@ public class CommonService {
 
     @Autowired
     private ValidationService validationService;
+    
+    @Autowired
+    private TokenFieldConfigService tokenFieldConfigService;
+ 
 
     public ApiResponse<Map<String, Object>> getList(String targetTable, Map<String, Object> params) {
         if (StrUtil.isEmpty(targetTable)) {
@@ -151,75 +156,31 @@ public class CommonService {
     public ApiResponse<Map<String, Object>> login(Map<String, Object> credentials) {
         String username = MapUtil.getStr(credentials, "username");
         String password = MapUtil.getStr(credentials, "password");
-
         if (StrUtil.isEmpty(username) || StrUtil.isEmpty(password)) {
             return ApiResponse.failed("用户名和密码不能为空");
         }
-
         try {
             // 从数据库查询用户信息
-            Map<String, Object> queryParams = MapUtil.newHashMap();
-            queryParams.put("username", username);
-            Map<String, Object> user = baseService.getOne("sys_user", queryParams);
-
+           credentials.remove("password");
+            credentials.put("status", 1);
+            Map<String, Object> user=baseService.getOne("sys_user",credentials);
             if (user == null) {
                 logger.warn("用户不存在: {}", username);
-                return ApiResponse.failed("用户名或密码错误");
+                return ApiResponse.failed("用户名错误");
             }
-
-            // 检查用户状态
-            Integer status = MapUtil.getInt(user, "status");
-            if (status == null || status != 1) {
-                logger.warn("用户状态异常: {}, status={}", username, status);
-                return ApiResponse.failed("账户已被禁用，请联系管理员");
-            }
-
-            // 验证密码
             String hashedPassword = MapUtil.getStr(user, "password");
-            if (StrUtil.isEmpty(hashedPassword) || !BCrypt.checkpw(password, hashedPassword)) {
+            boolean passwordValid = !StrUtil.isEmpty(hashedPassword) && BCrypt.checkpw(password, hashedPassword);
+            if (!passwordValid) {
                 logger.warn("密码验证失败: {}", username);
                 return ApiResponse.failed("密码错误");
             }
-
-            // 获取用户角色
-            List<Map<String, Object>> roleList = baseService.queryList(
-                    "sys_user_role ur", // 只写主表
-                    0, 100, "r.role_code",
-                    MapUtil.of("ur.user_id", user.get("id")),
-                    "JOIN sys_role r ON ur.role_id = r.id", // join 语句单独传
-                    null, null);
-
-            List<String> roles = roleList.stream()
-                    .map(r -> MapUtil.getStr(r, "role_code"))
-                    .filter(StrUtil::isNotEmpty)
-                    .collect(Collectors.toList());
-
-            // 获取用户所属组织
-            Integer orgId = MapUtil.getInt(user, "org_id");
-            String orgName = "";
-            if (orgId != null && orgId > 0) {
-                Map<String, Object> org = baseService.getOne("sys_org", MapUtil.of("id", orgId));
-                if (org != null) {
-                    orgName = MapUtil.getStr(org, "org_name", "");
-                }
-            }
-
-            // 构建用户信息
-            Map<String, Object> userInfo = MapUtil.newHashMap();
-            userInfo.put("id", user.get("id"));
-            userInfo.put("userId", user.get("id")); // 兼容旧代码
-            userInfo.put("username", username);
-            userInfo.put("real_name", user.get("real_name"));
-            userInfo.put("status", status);
-            userInfo.put("org_id", orgId);
-            userInfo.put("org_name", orgName);
-            userInfo.put("roles", roles.isEmpty() ? Arrays.asList("USER") : roles);
-
+            List<Map<String, Object>> userAttrs = baseService.getColumnAttributes("sys_user", null);
+            //通过tokenFieldConfigService 获取动态的用于组成token信息的字段，然后将这些字段内容提取出来为tokenUserInfo数据，生成token
+            Map<String, Object> tokenUserInfo = tokenFieldConfigService.processTokenValue(userAttrs,user);
             // 生成JWT令牌
-            String token = jwtService.generateToken(userInfo);
-            userInfo.put("token", token);
-
-            return ApiResponse.success(userInfo);
+            String token = jwtService.generateToken(tokenUserInfo);
+            user.put("token", token);
+            return ApiResponse.success(user);
         } catch (Exception e) {
             logger.error("登录过程中发生错误", e);
             // 创建一个包含错误信息的Map
@@ -238,12 +199,7 @@ public class CommonService {
             data.remove("password"); // 更新时不传密码则不修改
         }
 
-        // 设置审计字段
-        if (!isUpdate && !"sys_user_role".equalsIgnoreCase(targetTable)) {
-            if (!data.containsKey("created_at")) {
-                data.put("created_at", new Timestamp(System.currentTimeMillis()));
-            }
-        }
+       
     }
 
     /**

@@ -10,6 +10,8 @@ CREATE TABLE sys_user (
   real_name VARCHAR(50),
   email VARCHAR(100),
   status TINYINT DEFAULT 1,
+  role_id INT NOT NULL,
+  org_id INT NOT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

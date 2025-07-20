@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ycbd.demo.security.UserContext;
 
+import cn.hutool.core.map.MapUtil;
 import cn.hutool.core.util.StrUtil;
 
 /**
@@ -82,7 +83,7 @@ public class TokenFieldConfigService {
     /**
      * 处理列属性，提取token字段配置
      */
-    private void processColumnAttributes(List<Map<String, Object>> attrs, Map<String, Boolean> result) {
+    public void processColumnAttributes(List<Map<String, Object>> attrs, Map<String, Boolean> result) {
         if (attrs == null || attrs.isEmpty()) {
             return;
         }
@@ -109,16 +110,44 @@ public class TokenFieldConfigService {
         }
     }
 
+    public Map<String, Object> processTokenValue(List<Map<String, Object>> attrs, Map<String, Object> valueMap) {
+        if (attrs == null || attrs.isEmpty()) {
+            return new HashMap<>();
+        }
+        Map<String, Object> result=new HashMap<>();
+        for (Map<String, Object> attr : attrs) {
+            String otherInfo = (String) attr.get("other_info");
+            if (StrUtil.isBlank(otherInfo)) {
+                continue;
+            }
+           
+            try {
+                Map<String, Object> otherMap = objectMapper.readValue(otherInfo, Map.class);
+                if (Boolean.TRUE.equals(otherMap.get(TOKEN_FIELD_FLAG))) {
+                    String columnName = (String) attr.get("column_name");
+                    String tokenName = otherMap.containsKey(TOKEN_FIELD_NAME)
+                            ? (String) otherMap.get(TOKEN_FIELD_NAME) : columnName;
+
+                    result.put(tokenName, MapUtil.getStr(valueMap,tokenName));
+                    logger.info("添加Token字段: {} -> {}", columnName, tokenName);
+                }
+            } catch (Exception e) {
+                logger.warn("解析other_info字段JSON失败: {}", otherInfo, e);
+                return new HashMap<>();
+            }
+        }
+        return result;
+    }
+
     /**
      * 添加默认的Token字段配置
      */
     private void addDefaultTokenFields(Map<String, Boolean> result) {
-        result.put("userId", true);
+        result.put("id", true);
         result.put("username", true);
         result.put("real_name", true);
-        result.put("roles", true);
-        result.put("orgId", true);
-        result.put("orgName", true);
+        result.put("role_id", true);
+        result.put("org_id", true);
     }
 
     /**

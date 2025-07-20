@@ -12,7 +12,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -27,7 +26,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ycbd.demo.utils.ApiResponse;
 
 @Component
@@ -36,11 +34,6 @@ public class TestServicePlugin implements IPlugin {
     private static final Logger logger = LoggerFactory.getLogger(TestServicePlugin.class);
     private static final String DEFAULT_RESULT_DIR = "src/main/resources/test/test_results";
     private static final Pattern TOKEN_PATTERN = Pattern.compile("\"token\"\\s*:\\s*\"([^\"]+)\"|'token'\\s*:\\s*'([^']+)'");
-    private static final ObjectMapper objectMapper = new ObjectMapper();
-
-    // 允许的命令前缀列表
-    private static final List<String> ALLOWED_PREFIXES = Arrays.asList("curl ", "echo ", "#");
-
     private TestServiceController controller;
     private boolean isInitialized = false;
 
@@ -454,38 +447,6 @@ public class TestServicePlugin implements IPlugin {
                 logger.error("读取脚本文件失败", e);
                 return "读取脚本文件失败: " + e.getMessage();
             }
-        }
-
-        /**
-         * 检查行是否是允许的内容
-         */
-        private boolean isAllowedLine(String line) {
-            if (line.isEmpty()) {
-                return true;
-            }
-
-            // 检查是否以允许的前缀开头
-            for (String prefix : ALLOWED_PREFIXES) {
-                if (line.toLowerCase().startsWith(prefix.toLowerCase())) {
-                    return true;
-                }
-            }
-
-            return false;
-        }
-
-        /**
-         * 读取文件内容
-         */
-        private List<String> readFileLines(File file) throws IOException {
-            List<String> lines = new ArrayList<>();
-            try (BufferedReader reader = new BufferedReader(new InputStreamReader(Files.newInputStream(file.toPath()), StandardCharsets.UTF_8))) {
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    lines.add(line);
-                }
-            }
-            return lines;
         }
     }
 

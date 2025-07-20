@@ -32,8 +32,6 @@ public class BaseService {
     @Autowired
     private DataPreprocessorService dataPreprocessorService;
 
-    @Autowired
-    private MetaService metaService;
 
     /** 全局字段映射缓存 key->真实列名 */
     private static final Map<String, String> GLOBAL_FIELD_MAPPINGS_CACHE = new ConcurrentHashMap<>();
@@ -158,6 +156,7 @@ public class BaseService {
      */
     @Transactional
     public long save(String table, Map<String, Object> data) {
+        
         // 数据预处理（默认值 / 审计字段 / 必填校验）
         dataPreprocessorService.preprocessForSave(table, data);
         // 预处理数据，确保所有值都是MyBatis可以处理的类型
@@ -281,7 +280,14 @@ public class BaseService {
         // ---------- 1. 解析字段映射配置 ----------
         Map<String, String> tableFieldMappings = new HashMap<>();
         try {
-            Map<String, Object> tableCfg = getTableConfig(table);
+            // 直接查询表配置，避免递归调用
+            Map<String, Object> queryParams = new HashMap<>();
+            queryParams.put("db_table", table);
+            List<Map<String, Object>> tableCfgList = systemMapper.getItemsData(
+                    "table_attribute", "*", null, 
+                    "db_table = '" + table.replace("'", "''") + "'", 
+                    null, null, 1, 0);
+            Map<String, Object> tableCfg = tableCfgList.isEmpty() ? null : tableCfgList.get(0);
             String defin = MapUtil.getStr(tableCfg, "defin_columns");
             if (StrUtil.isNotBlank(defin)) {
                 JSONObject jo = JSONUtil.parseObj(defin);
@@ -313,7 +319,35 @@ public class BaseService {
         }
 
         // Step 1: 获取并转换字段属性
-        List<Map<String, Object>> columnAttributes = getColumnAttributes(table, null);
+        // 直接查询列属性，避免递归调用
+        List<Map<String, Object>> columnAttributes = systemMapper.getColumnAttributes(table, null);
+        // 将所有key转为小写
+        List<Map<String, Object>> normalizedAttrs = new ArrayList<>();
+        for (Map<String, Object> item : columnAttributes) {
+            Map<String, Object> lower = new HashMap<>();
+            for (Map.Entry<String, Object> entry : item.entrySet()) {
+                lower.put(entry.getKey().toLowerCase(), entry.getValue());
+            }
+            // 关键字段取值也转小写，方便后续比较
+            Object colName = lower.get("column_name");
+            if (colName != null) {
+                lower.put("column_name", colName.toString().toLowerCase());
+            }
+            Object qType = lower.get("query_type");
+            if (qType != null) {
+                lower.put("query_type", qType.toString().toLowerCase());
+            }
+            Object cType = lower.get("column_type");
+            if (cType != null) {
+                lower.put("column_type", cType.toString().toLowerCase());
+            }
+            Object isPri = lower.get("is_pri");
+            if (isPri != null) {
+                lower.put("is_pri", isPri.toString().toLowerCase());
+            }
+            normalizedAttrs.add(lower);
+        }
+        columnAttributes = normalizedAttrs;
         List<Map<String, Object>> attributesForBuilder = new ArrayList<>();
         Map<String, String> queryTypeOverrides = new HashMap<>();
 

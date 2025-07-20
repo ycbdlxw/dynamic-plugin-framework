@@ -1,7 +1,5 @@
 package com.ycbd.demo.controller;
 
-import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 import org.slf4j.Logger;
@@ -15,9 +13,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.ycbd.demo.security.UserContext;
-import com.ycbd.demo.service.BaseService;
+import com.ycbd.demo.service.CommonService;
 import com.ycbd.demo.utils.ApiResponse;
+
+import cn.hutool.core.map.MapUtil;
 
 @RestController
 @RequestMapping("/api/common")
@@ -26,34 +25,15 @@ public class CommonController {
     private static final Logger logger = LoggerFactory.getLogger(CommonController.class);
 
     @Autowired
-    private BaseService baseService;
+    private CommonService commonService;
 
     @PostMapping("/save")
     public ApiResponse<Map<String, Object>> save(
             @RequestParam String targetTable,
             @RequestBody Map<String, Object> data) {
         try {
-            // 安全检查：获取当前用户ID
-            Integer userId = UserContext.getUserId();
-            if (userId == null) {
-                return ApiResponse.failed("未授权的操作");
-            }
-
-            // 简单检查ID是否存在，确定是创建还是更新操作
-            Object id = data.get("id");
-            Map<String, Object> result = new HashMap<>();
-
-            if (id != null) {
-                // 使用BaseService进行更新
-                baseService.update(targetTable, data, id);
-                result.put("id", id);
-            } else {
-                // 使用BaseService进行保存
-                long newId = baseService.save(targetTable, data);
-                result.put("id", newId);
-            }
-
-            return ApiResponse.success(result);
+            return  commonService.saveData(targetTable, data);
+           
         } catch (Exception e) {
             e.printStackTrace();
             return ApiResponse.failed("保存失败: " + e.getMessage());
@@ -67,47 +47,7 @@ public class CommonController {
         try {
             // 添加日志输出
             logger.info("获取列表请求: targetTable={}, params={}", targetTable, allParams);
-
-            // 获取用户信息并记录日志
-            Map<String, Object> user = UserContext.getUser();
-            logger.info("当前用户上下文: {}", user);
-
-            // 安全检查：获取当前用户ID
-            Integer userId = UserContext.getUserId();
-            logger.info("获取到的userId: {}", userId);
-
-            // 移除targetTable参数，它不应该作为查询条件
-            allParams.remove("targetTable");
-
-            // 获取分页参数
-            int pageIndex = 0;
-            int pageSize = 100;
-            if (allParams.containsKey("pageIndex")) {
-                pageIndex = Integer.parseInt(allParams.get("pageIndex").toString());
-                allParams.remove("pageIndex");
-            }
-            if (allParams.containsKey("pageSize")) {
-                pageSize = Integer.parseInt(allParams.get("pageSize").toString());
-                allParams.remove("pageSize");
-            }
-            // 过滤所有分页、排序、通用保留参数，避免进入WHERE
-            String[] reservedKeys = {"orderBy", "sortByAndType", "columns", "offset", "limit"};
-            for (String key : reservedKeys) {
-                allParams.remove(key);
-            }
-
-            // 使用BaseService查询列表
-            List<Map<String, Object>> items = baseService.queryList(
-                    targetTable, pageIndex, pageSize, null, allParams, null, "id ASC", null);
-
-            // 获取总数
-            int total = baseService.count(targetTable, allParams, null);
-
-            Map<String, Object> result = new HashMap<>();
-            result.put("items", items);
-            result.put("total", total);
-
-            return ApiResponse.success(result);
+            return commonService.getList(targetTable, allParams);
         } catch (Exception e) {
             logger.error("查询失败", e);
             return ApiResponse.failed("查询失败: " + e.getMessage());
@@ -118,90 +58,8 @@ public class CommonController {
     public ApiResponse<Map<String, Object>> listPost(
             @RequestBody Map<String, Object> requestBody) {
         try {
-            String targetTable = requestBody.get("targetTable").toString();
-            logger.info("POST方式获取列表请求: targetTable={}, body={}", targetTable, requestBody);
-
-            // 获取用户信息并记录日志
-            Map<String, Object> user = UserContext.getUser();
-            logger.info("当前用户上下文: {}", user);
-
-            // 安全检查：获取当前用户ID
-            Integer userId = UserContext.getUserId();
-            logger.info("获取到的userId: {}", userId);
-
-            // 获取分页参数
-            int pageIndex = 0;
-            int pageSize = 10;
-            if (requestBody.containsKey("pageIndex")) {
-                pageIndex = Integer.parseInt(requestBody.get("pageIndex").toString());
-            }
-            if (requestBody.containsKey("pageSize")) {
-                pageSize = Integer.parseInt(requestBody.get("pageSize").toString());
-            }
-
-            // 获取查询参数
-            Map<String, Object> params = new HashMap<>();
-            if (requestBody.containsKey("params") && requestBody.get("params") instanceof Map) {
-                @SuppressWarnings("unchecked")
-                Map<String, Object> requestParams = (Map<String, Object>) requestBody.get("params");
-                
-                // 遍历并处理所有参数
-                for (Map.Entry<String, Object> entry : requestParams.entrySet()) {
-                    String key = entry.getKey();
-                    Object value = entry.getValue();
-                    
-                    // 处理数组类型参数
-                    if (value instanceof List) {
-                        List<?> list = (List<?>) value;
-                        
-                        // 范围查询特殊处理
-                        if (key.endsWith("_range") && list.size() == 2) {
-                            // 将["2023-01-01", "2023-12-31"]转换成"2023-01-01~2023-12-31"
-                            String rangeValue = list.get(0) + "~" + list.get(1);
-                            params.put(key, rangeValue);
-                        } else {
-                            // IN查询，将数组转换成逗号分隔的字符串
-                            String inValue = list.stream()
-                                    .map(Object::toString)
-                                    .collect(java.util.stream.Collectors.joining(","));
-                            
-                            // 自动添加_in后缀（如果没有）
-                            if (!key.endsWith("_in")) {
-                                key = key + "_in";
-                            }
-                            
-                            // 特殊处理：roles参数不是sys_user表的直接字段，需要去除
-                            if (!"roles_in".equals(key) && !"roles".equals(key)) {
-                                params.put(key, inValue);
-                            } else {
-                                logger.info("跳过roles参数，因为它不是sys_user表的直接字段");
-                            }
-                        }
-                    } else {
-                        // 直接添加其他类型的参数，但排除roles字段
-                        if (!"roles".equals(key)) {
-                            params.put(key, value);
-                        } else {
-                            logger.info("跳过roles参数，因为它不是sys_user表的直接字段");
-                        }
-                    }
-                }
-            }
-
-            logger.info("处理后的查询参数: {}", params);
-
-            // 使用BaseService查询列表
-            List<Map<String, Object>> items = baseService.queryList(
-                    targetTable, pageIndex, pageSize, null, params, null, "id ASC", null);
-
-            // 获取总数
-            int total = baseService.count(targetTable, params, null);
-
-            Map<String, Object> result = new HashMap<>();
-            result.put("items", items);
-            result.put("total", total);
-
-            return ApiResponse.success(result);
+           String targetTable=MapUtil.getStr(requestBody, "targetTable");
+              return commonService.getList(targetTable, requestBody);
         } catch (Exception e) {
             logger.error("POST方式查询失败", e);
             return ApiResponse.failed("查询失败: " + e.getMessage());
@@ -213,19 +71,8 @@ public class CommonController {
             @RequestParam String targetTable,
             @RequestParam Integer id) {
         try {
-            // 安全检查：获取当前用户ID
-            Integer userId = UserContext.getUserId();
-            if (userId == null) {
-                return ApiResponse.failed("未授权的操作");
-            }
-
-            // 使用BaseService进行删除
-            baseService.delete(targetTable, id);
-
-            Map<String, Object> result = new HashMap<>();
-            result.put("affected", 1);
-
-            return ApiResponse.success(result);
+            
+            return   commonService.deleteData(targetTable, id);
         } catch (Exception e) {
             return ApiResponse.failed("删除失败: " + e.getMessage());
         }

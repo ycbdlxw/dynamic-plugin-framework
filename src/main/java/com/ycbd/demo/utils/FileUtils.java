@@ -8,8 +8,7 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+
 
 import cn.hutool.core.util.StrUtil;
 
@@ -18,7 +17,6 @@ import cn.hutool.core.util.StrUtil;
  */
 public class FileUtils {
 
-    private static final Logger logger = LoggerFactory.getLogger(FileUtils.class);
 
     // 常用应用目录前缀
     private static final String[] APP_PREFIXES = {"WeiXin", "Screenshots", "qq", "down", "Pictures"};

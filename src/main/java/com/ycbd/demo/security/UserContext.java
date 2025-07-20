@@ -7,7 +7,6 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import com.ycbd.demo.service.TokenFieldConfigService;
@@ -29,7 +28,6 @@ public class UserContext {
 
     private static TokenFieldConfigService tokenFieldConfigService;
 
-    @Autowired
     public UserContext(TokenFieldConfigService tokenFieldConfigService) {
         UserContext.tokenFieldConfigService = tokenFieldConfigService;
     }
@@ -68,7 +66,6 @@ public class UserContext {
      * @param <T> 返回类型
      * @return 字段值，如果不存在则返回null
      */
-    @SuppressWarnings("unchecked")
     public static <T> T getUserField(String fieldName) {
         Map<String, Object> user = getUser();
         if (user == null) {

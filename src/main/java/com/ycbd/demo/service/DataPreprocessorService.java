@@ -204,7 +204,7 @@ public class DataPreprocessorService {
         String[] auditFields = {
             "create_by", "created_at", "created_time", "create_time",
             "update_by", "updated_at", "updated_time", "update_time",
-            "creator", "updater", "org_id", "tenant_id"
+            "creator", "updater",  "tenant_id"
         };
 
         for (String field : auditFields) {
@@ -228,7 +228,6 @@ public class DataPreprocessorService {
 
         for (Map<String, Object> attr : attrs) {
             String columnName = MapUtil.getStr(attr, "column_name");
-            Integer editFlag = MapUtil.getInt(attr, "edit_flag", 0);
 
             // 如果数据中已有非空值，优先使用现有值 (最高优先级)
             if (data.containsKey(columnName) && isNotEmpty(data.get(columnName))) {
@@ -287,7 +286,7 @@ public class DataPreprocessorService {
             {"update_time", false, now},
             {"creator", true, username},
             {"updater", false, username},
-            {"org_id", true, orgId},
+          
             {"tenant_id", true, tenantId}
         };
 

@@ -126,8 +126,9 @@ public class PluginEngine implements ApplicationContextAware {
                 }
 
                 URL[] urls = new URL[]{pluginDir.toURI().toURL()};
-                URLClassLoader classLoader = new URLClassLoader(urls, getClass().getClassLoader());
-                pluginClass = classLoader.loadClass(className);
+                try (URLClassLoader classLoader = new URLClassLoader(urls, getClass().getClassLoader())) {
+                    pluginClass = classLoader.loadClass(className);
+                }
             }
 
             // 3. 实例化插件
