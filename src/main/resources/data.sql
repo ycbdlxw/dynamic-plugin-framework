@@ -289,3 +289,62 @@ INSERT INTO column_check_property (check_table, target_table, check_column, chec
 INSERT INTO column_check_property (check_table, target_table, check_column, check_mode, check_order, status, errorMsg) VALUES
 ('test_preprocessor', 'test_preprocessor', 'title', 'required', 1, 1, '标题不能为空');
 
+-- 初始化设备账户表数据
+INSERT INTO device_accounts (device_id, mac_address, status, remarks, created_at, updated_at) VALUES
+('android-001', '00:11:22:33:44:55', 1, '张三的设备', NOW(), NOW()),
+('android-002', '66:77:88:99:AA:BB', 0, '李四的设备', NOW(), NOW()),
+('android-003', 'CC:DD:EE:FF:00:11', 2, '测试设备', NOW(), NOW());
+
+-- 初始化工作流配置表数据
+INSERT INTO launch_configs (
+    device_id, name, pre_launch_app_name, pre_launch_app_package,
+    target_app_name, target_app_package, local_ip, remote_ip, created_at, updated_at
+) VALUES
+('android-001', '张三-微信自动登录', '微信', 'com.tencent.mm', '目标App', 'com.example.target', '192.168.1.10', '10.0.0.1', NOW(), NOW()),
+('android-002', '李四-钉钉自动登录', '钉钉', 'com.alibaba.android.rimet', '目标App', 'com.example.target2', '192.168.1.11', '10.0.0.2', NOW(), NOW());
+
+-- ========== 设备账户表 配置表初始化 ==========
+-- 注册表属性
+INSERT INTO table_attribute (db_table, table_name, main_key, sort, module, is_loading, is_all_select, is_row_operation_flag, is_operation_flag)
+VALUES ('device_accounts', '设备账户', 'id', 'created_at DESC', 'device', 0, 0, 1, 1);
+
+-- 注册字段属性
+INSERT INTO column_attribute (db_table_name, column_name, page_name, is_show_in_list, search_flag, edit_flag, is_required, order_no, field_type, field_num_type) VALUES
+('device_accounts', 'id', 'ID', TRUE, FALSE, FALSE, FALSE, 1, 'bigint', 2),
+('device_accounts', 'device_id', '设备ID', TRUE, TRUE, TRUE, TRUE, 2, 'varchar', 1),
+('device_accounts', 'mac_address', 'MAC地址', TRUE, TRUE, TRUE, FALSE, 3, 'varchar', 1),
+('device_accounts', 'status', '状态', TRUE, TRUE, TRUE, TRUE, 4, 'int', 2),
+('device_accounts', 'remarks', '备注', TRUE, FALSE, TRUE, FALSE, 5, 'varchar', 1),
+('device_accounts', 'created_at', '创建时间', TRUE, FALSE, FALSE, FALSE, 6, 'datetime', 4),
+('device_accounts', 'updated_at', '更新时间', TRUE, FALSE, FALSE, FALSE, 7, 'datetime', 4);
+
+-- 注册字段校验规则
+INSERT INTO column_check_property (check_table, target_table, check_column, check_mode, check_order, status, errorMsg) VALUES
+('device_accounts', 'device_accounts', 'device_id', 'required', 1, 1, '设备ID不能为空'),
+('device_accounts', 'device_accounts', 'device_id', 'unique', 2, 1, '设备ID已存在'),
+('device_accounts', 'device_accounts', 'status', 'required', 3, 1, '状态不能为空');
+
+-- ========== 工作流配置表 配置表初始化 ==========
+-- 注册表属性
+INSERT INTO table_attribute (db_table, table_name, main_key, sort, module, is_loading, is_all_select, is_row_operation_flag, is_operation_flag)
+VALUES ('launch_configs', '工作流配置', 'id', 'created_at DESC', 'workflow', 0, 0, 1, 1);
+
+-- 注册字段属性
+INSERT INTO column_attribute (db_table_name, column_name, page_name, is_show_in_list, search_flag, edit_flag, is_required, order_no, field_type, field_num_type) VALUES
+('launch_configs', 'id', 'ID', TRUE, FALSE, FALSE, FALSE, 1, 'bigint', 2),
+('launch_configs', 'device_id', '设备ID', TRUE, TRUE, TRUE, TRUE, 2, 'varchar', 1),
+('launch_configs', 'name', '配置名称', TRUE, TRUE, TRUE, TRUE, 3, 'varchar', 1),
+('launch_configs', 'pre_launch_app_name', '前置应用名', TRUE, FALSE, TRUE, FALSE, 4, 'varchar', 1),
+('launch_configs', 'pre_launch_app_package', '前置应用包名', TRUE, FALSE, TRUE, FALSE, 5, 'varchar', 1),
+('launch_configs', 'target_app_name', '目标应用名', TRUE, FALSE, TRUE, FALSE, 6, 'varchar', 1),
+('launch_configs', 'target_app_package', '目标应用包名', TRUE, FALSE, TRUE, FALSE, 7, 'varchar', 1),
+('launch_configs', 'local_ip', '局域网IP', TRUE, FALSE, TRUE, FALSE, 8, 'varchar', 1),
+('launch_configs', 'remote_ip', '远程IP', TRUE, FALSE, TRUE, FALSE, 9, 'varchar', 1),
+('launch_configs', 'created_at', '创建时间', TRUE, FALSE, FALSE, FALSE, 10, 'datetime', 4),
+('launch_configs', 'updated_at', '更新时间', TRUE, FALSE, FALSE, FALSE, 11, 'datetime', 4);
+
+-- 注册字段校验规则
+INSERT INTO column_check_property (check_table, target_table, check_column, check_mode, check_order, status, errorMsg) VALUES
+('launch_configs', 'launch_configs', 'device_id', 'required', 1, 1, '设备ID不能为空'),
+('launch_configs', 'launch_configs', 'name', 'required', 2, 1, '配置名称不能为空');
+

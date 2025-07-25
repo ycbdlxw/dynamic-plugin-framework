@@ -212,3 +212,32 @@ CREATE TABLE system_log (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间'
 );
 
+-- 设备账户表
+DROP TABLE IF EXISTS device_accounts;
+CREATE TABLE device_accounts (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '主键，自增 ID',
+    device_id VARCHAR(255) NOT NULL UNIQUE COMMENT '安卓设备的安全 ID',
+    mac_address VARCHAR(255) COMMENT '设备的 MAC 地址',
+    status INT NOT NULL DEFAULT 0 COMMENT '账户状态 (0=待审核, 1=有效, 2=禁用)',
+    remarks VARCHAR(500) COMMENT '备注，例如设备所有者',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间'
+) COMMENT='设备账户表';
+
+-- 工作流配置表
+DROP TABLE IF EXISTS launch_configs;
+CREATE TABLE launch_configs (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '主键，自增 ID',
+    device_id VARCHAR(255) NOT NULL COMMENT '外键, 关联 device_accounts.device_id',
+    name VARCHAR(255) NOT NULL COMMENT '工作流配置的名称',
+    pre_launch_app_name VARCHAR(255) COMMENT '前置应用的名称',
+    pre_launch_app_package VARCHAR(255) COMMENT '前置应用的包名',
+    target_app_name VARCHAR(255) COMMENT '目标应用的名称',
+    target_app_package VARCHAR(255) COMMENT '目标应用的包名',
+    local_ip VARCHAR(255) COMMENT '局域网 IP 地址',
+    remote_ip VARCHAR(255) COMMENT '远程/VPN IP 地址',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    CONSTRAINT fk_device_id FOREIGN KEY (device_id) REFERENCES device_accounts(device_id)
+) COMMENT='工作流配置表';
+

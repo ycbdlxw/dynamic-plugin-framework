@@ -1,0 +1,41 @@
+# device_accounts 设备账户表 CRUD 测试文件
+# 使用方法: sh run_device_accounts_crud_test.sh
+# 创建日期: 2025-07-21
+# 创建人: ycbd
+
+# 登录获取token
+curl -X POST 'http://localhost:8080/api/core/login' -H 'Content-Type: application/json' -d '{"username":"admin","password":"ycbd1234"}'
+
+
+# 1. 新增设备账户
+echo "测试1: 新增设备账户"
+curl -X POST "http://localhost:8080/api/common/save?targetTable=device_accounts" -H "Content-Type: application/json" -H "Authorization: Bearer your-token-here" -d '{"device_id":"android-100","mac_address":"AA:BB:CC:DD:EE:FF","status":1,"remarks":"自动化测试设备"}' -w "\n\nStatus: %{http_code}\nTime: %{time_total}s\n\n"
+
+# 2. 查询设备账户列表
+echo "测试2: 查询设备账户列表"
+curl -X GET "http://localhost:8080/api/common/list?targetTable=device_accounts&pageIndex=0&pageSize=10" -H "Authorization: Bearer your-token-here" -w "\n\nStatus: %{http_code}\nTime: %{time_total}s\n\n"
+
+# 3. 查询指定设备账户
+echo "测试3: 查询指定设备账户（device_id=android-100）"
+curl -X GET "http://localhost:8080/api/common/list?targetTable=device_accounts&device_id=android-100" -H "Authorization: Bearer your-token-here" -w "\n\nStatus: %{http_code}\nTime: %{time_total}s\n\n"
+
+# 4. 更新设备账户状态（device_id=android-100，需带id）
+echo "测试4: 更新设备账户状态（device_id=android-100）"
+curl -X POST "http://localhost:8080/api/common/save?targetTable=device_accounts" -H "Content-Type: application/json" -H "Authorization: Bearer your-token-here" -d "{\"id\":4,\"device_id\":\"android-100\",\"status\":2,\"remarks\":\"已禁用\"}" -w "\n\nStatus: %{http_code}\nTime: %{time_total}s\n\n"
+
+# 5. 再次查询确认更新
+echo "测试5: 查询已更新的设备账户（device_id=android-100）"
+curl -X GET "http://localhost:8080/api/common/list?targetTable=device_accounts&device_id=android-100" -H "Authorization: Bearer your-token-here" -w "\n\nStatus: %{http_code}\nTime: %{time_total}s\n\n"
+
+# 6. 删除设备账户（device_id=android-100，需带targetTable和id）
+echo "测试6: 删除设备账户（device_id=android-100）"
+curl -X POST "http://localhost:8080/api/common/delete" -H "Content-Type: application/json" -H "Authorization: Bearer your-token-here" -d "{\"targetTable\":\"device_accounts\",\"id\":4}" -w "\n\nStatus: %{http_code}\nTime: %{time_total}s\n\n"
+
+# 7. 查询已删除账户，预期无结果
+echo "测试7: 查询已删除的设备账户（device_id=android-100）"
+curl -X GET "http://localhost:8080/api/common/list?targetTable=device_accounts&device_id=android-100" -H "Authorization: Bearer your-token-here" -w "\n\nStatus: %{http_code}\nTime: %{time_total}s\n\n"
+
+# 8. 异常场景：新增重复device_id
+echo "测试8: 新增重复device_id，预期失败"
+curl -X POST "http://localhost:8080/api/common/save?targetTable=device_accounts" -H "Content-Type: application/json" -H "Authorization: Bearer your-token-here" -d '{"device_id":"android-001","mac_address":"11:22:33:44:55:66","status":1,"remarks":"重复测试"}' -w "\n\nStatus: %{http_code}\nTime: %{time_total}s\n\n"
+

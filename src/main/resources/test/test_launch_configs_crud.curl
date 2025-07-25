@@ -1,0 +1,40 @@
+# launch_configs 工作流配置表 CRUD 测试文件
+# 使用方法: sh run_launch_configs_crud_test.sh
+# 创建日期: 2025-07-21
+# 创建人: ycbd
+
+# 获取管理员Token
+curl -s -X POST "http://localhost:8080/api/core/login" -H "Content-Type: application/json" -d '{"username":"admin","password":"ycbd1234"}' 
+
+# 1. 新增工作流配置
+echo "测试1: 新增工作流配置"
+curl -X POST "http://localhost:8080/api/common/save?targetTable=launch_configs" -H "Content-Type: application/json" -H "Authorization: Bearer  your-token-here" -d '{"device_id":"android-001","name":"自动化测试配置","pre_launch_app_name":"微信","pre_launch_app_package":"com.tencent.mm","target_app_name":"目标App","target_app_package":"com.example.target","local_ip":"192.168.1.100","remote_ip":"10.0.0.100"}' -w "\n\nStatus: %{http_code}\nTime: %{time_total}s\n\n"
+
+# 2. 查询工作流配置列表
+echo "测试2: 查询工作流配置列表"
+curl -X GET "http://localhost:8080/api/common/list?targetTable=launch_configs&pageIndex=0&pageSize=10" -H "Authorization: Bearer  your-token-here" -w "\n\nStatus: %{http_code}\nTime: %{time_total}s\n\n"
+
+# 3. 查询指定配置
+echo "测试3: 查询指定配置（name=自动化测试配置）"
+curl -X GET "http://localhost:8080/api/common/list?targetTable=launch_configs&name_like=自动化测试配置" -H "Authorization: Bearer  your-token-here" -w "\n\nStatus: %{http_code}\nTime: %{time_total}s\n\n"
+
+# 4. 更新配置的目标App
+echo "测试4: 更新配置的目标App（name=自动化测试配置）"
+curl -X POST "http://localhost:8080/api/common/save?targetTable=launch_configs" -H "Content-Type: application/json" -H "Authorization: Bearer  your-token-here" -d '{"id":2,"target_app_name":"已更新目标App","remarks":"已更新"}' -w "\n\nStatus: %{http_code}\nTime: %{time_total}s\n\n"
+
+# 5. 再次查询确认更新
+echo "测试5: 查询已更新的配置（name=自动化测试配置）"
+curl -X GET "http://localhost:8080/api/common/list?targetTable=launch_configs&name_like=自动化测试配置" -H "Authorization: Bearer  your-token-here" -w "\n\nStatus: %{http_code}\nTime: %{time_total}s\n\n"
+
+# 6. 删除配置
+echo "测试6: 删除配置（name=自动化测试配置）"
+curl -X POST "http://localhost:8080/api/common/delete" -H "Content-Type: application/json" -H "Authorization: Bearer  your-token-here" -d '{"targetTable":"launch_configs","id":2}' -w "\n\nStatus: %{http_code}\nTime: %{time_total}s\n\n"
+
+# 7. 查询已删除配置，预期无结果
+echo "测试7: 查询已删除的配置（name=自动化测试配置）"
+curl -X GET "http://localhost:8080/api/common/list?targetTable=launch_configs&name_like=自动化测试配置" -H "Authorization: Bearer  your-token-here" -w "\n\nStatus: %{http_code}\nTime: %{time_total}s\n\n"
+
+# 8. 异常场景：device_id不存在
+echo "测试8: 新增不存在device_id的配置，预期失败"
+curl -X POST "http://localhost:8080/api/common/save?targetTable=launch_configs" -H "Content-Type: application/json" -H "Authorization: Bearer  your-token-here" -d '{"device_id":"not-exist-device","name":"异常测试","pre_launch_app_name":"无","pre_launch_app_package":"none","target_app_name":"无","target_app_package":"none","local_ip":"0.0.0.0","remote_ip":"0.0.0.0"}' -w "\n\nStatus: %{http_code}\nTime: %{time_total}s\n\n"
+
